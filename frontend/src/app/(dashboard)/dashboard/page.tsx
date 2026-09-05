@@ -1,75 +1,70 @@
 import Link from 'next/link';
 
-export default function Dashboard() {
+export default function DashboardPage() {
+  const activities = [
+    { text: 'Acme Corp quotation approved by Finance', badge: 'badge-success', label: 'Approved', time: '2h ago' },
+    { text: 'Beta Industries requested a discount change', badge: 'badge-warning', label: 'Action Needed', time: '5h ago' },
+    { text: 'East Depot stock updated for Order #2291', badge: 'badge-info', label: 'Info', time: 'Yesterday' },
+  ];
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div className="page-header page-header-row">
         <div>
-          <h1 className="page-title">Sales Dashboard</h1>
-          <p style={{ color: 'var(--foreground-muted)' }}>Overview of your active deals, approvals, and recent activity.</p>
+          <h1 className="page-title">Sales Dashboard / Home</h1>
+          <p className="support-text">Central hub, links out to every module below</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link href="/quotations/new" className="btn btn-primary">+ New Quotation</Link>
+          <Link href="/approvals" className="btn btn-secondary">View Approvals</Link>
         </div>
       </div>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+
+      {/* KPI Cards */}
+      <div className="kpi-grid">
         <Link href="/approvals" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="card shadow" style={{ cursor: 'pointer' }}>
-            <h3 className="card-title" style={{ color: 'var(--foreground-muted)', textTransform: 'uppercase', fontSize: '12px' }}>Pending Approvals</h3>
-            <p className="kpi-number">4</p>
-            <p style={{ fontSize: '12px', marginTop: '8px' }}>quotations waiting for approval</p>
+          <div className="kpi-card card-shadow">
+            <div className="card-label">Pending Approvals</div>
+            <div className="kpi-value" style={{ color: 'var(--warning-fg)' }}>4</div>
+            <div className="kpi-sub">quotations waiting</div>
           </div>
         </Link>
         <Link href="/quotations" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="card shadow" style={{ cursor: 'pointer' }}>
-            <h3 className="card-title" style={{ color: 'var(--foreground-muted)', textTransform: 'uppercase', fontSize: '12px' }}>Open Quotations</h3>
-            <p className="kpi-number">12</p>
-            <p style={{ fontSize: '12px', marginTop: '8px' }}>active deals</p>
+          <div className="kpi-card card-shadow">
+            <div className="card-label">Open Quotations</div>
+            <div className="kpi-value" style={{ color: 'var(--primary)' }}>12</div>
+            <div className="kpi-sub">active deals</div>
           </div>
         </Link>
         <Link href="/deal-health" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="card shadow" style={{ cursor: 'pointer' }}>
-            <h3 className="card-title" style={{ color: 'var(--foreground-muted)', textTransform: 'uppercase', fontSize: '12px' }}>At-Risk Deals</h3>
-            <p className="kpi-number">3</p>
-            <p style={{ fontSize: '12px', marginTop: '8px' }}>flagged by Deal Health</p>
+          <div className="kpi-card card-shadow">
+            <div className="card-label">At-Risk Deals</div>
+            <div className="kpi-value" style={{ color: 'var(--danger-fg)' }}>3</div>
+            <div className="kpi-sub">flagged by Deal Health</div>
           </div>
         </Link>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '32px' }}>
-        <div className="card">
-          <h2 className="section-title">01 / RECENT ACTIVITY</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '24px' }}>
-            <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Acme Corp quotation approved by Finance</strong>
-                <span className="badge badge-success">Approved</span>
+      {/* Recent Activity */}
+      <div className="card">
+        <h2 className="section-title">Recent Activity</h2>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {activities.map((a, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '14px 0',
+              borderBottom: i < activities.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+              gap: 12,
+            }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{a.text}</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{a.time}</div>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--foreground-muted)', marginTop: '4px' }}>2 hours ago</div>
+              <span className={`badge ${a.badge}`}>{a.label}</span>
             </div>
-            <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Beta Industries requested a discount</strong>
-                <span className="badge badge-warning">Action Required</span>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--foreground-muted)', marginTop: '4px' }}>5 hours ago</div>
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>East Depot stock updated for Order #2291</strong>
-                <span className="badge badge-info">Info</span>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--foreground-muted)', marginTop: '4px' }}>Yesterday</div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="card shadow-lg" style={{ backgroundColor: 'var(--primary-light)', borderColor: 'var(--primary)' }}>
-          <h2 className="section-title">DEAL GUARDIAN</h2>
-          <div style={{ marginTop: '24px' }}>
-            <p style={{ fontWeight: 'bold' }}>HIGH RISK</p>
-            <p className="kpi-number" style={{ color: 'var(--danger-text)' }}>78 / 100</p>
-            <p style={{ marginTop: '16px', fontSize: '14px' }}>Pipeline requires attention due to 3 stalled deals.</p>
-            <Link href="/deal-health" className="btn btn-secondary" style={{ marginTop: '16px', width: '100%' }}>View Details</Link>
-          </div>
+          ))}
         </div>
       </div>
     </div>
