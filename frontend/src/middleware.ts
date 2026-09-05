@@ -11,6 +11,7 @@ const ROLE_ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
   '/invoices': ['ADMIN', 'FINANCE', 'SALES_MANAGER'],
   '/subscriptions': ['ADMIN', 'FINANCE', 'SALES_REP', 'SALES_MANAGER'],
   '/reports': ['ADMIN', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS', 'SALES_REP'],
+  '/analytics': ['ADMIN', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS', 'SALES_REP'],
   '/deal-health': ['ADMIN', 'SALES_MANAGER', 'SALES_REP', 'FINANCE'],
   '/products': ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'],
   '/quotations': ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'],
