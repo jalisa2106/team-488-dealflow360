@@ -33,6 +33,7 @@ export const protectedRoutes = [
   "/analytics",
   "/admin",
   "/portal",
+  "/orders",
 ];
 
 async function verifyToken(token: string) {
