@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { verifyPassword } from "@/lib/auth/hash";
 import { setSessionCookie, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { checkRateLimit, recordFailedAttempt, clearAttempts } from "@/lib/auth/rate-limit";
 import { z } from "zod";
 
 const LoginSchema = z.object({
@@ -23,11 +24,30 @@ export async function POST(req: NextRequest) {
 
     const { email, password } = parsed.data;
 
+    // Rate limiting — 5 failed attempts per 15 min per email+IP
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      req.headers.get("x-real-ip") ??
+      "unknown";
+    const rateCheck = checkRateLimit(email, ip);
+    if (rateCheck.blocked) {
+      return NextResponse.json(
+        {
+          error: `Too many failed login attempts. Please try again in ${rateCheck.retryAfter} seconds.`,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateCheck.retryAfter) },
+        }
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
 
     if (!user || !user.active) {
+      recordFailedAttempt(email, ip);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -36,11 +56,15 @@ export async function POST(req: NextRequest) {
 
     const passwordMatches = await verifyPassword(password, user.passwordHash);
     if (!passwordMatches) {
+      recordFailedAttempt(email, ip);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
+
+    // Successful login — clear attempt counter
+    clearAttempts(email, ip);
 
     // Generate signed JWT token & set cookie in cookie store
     const token = await setSessionCookie({

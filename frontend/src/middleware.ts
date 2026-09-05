@@ -5,8 +5,8 @@ import { getRequiredRolesForPath } from "@/lib/auth/rbac";
 
 const SESSION_COOKIE_NAME =
   process.env.SESSION_COOKIE_NAME || "dealflow360_session";
-const DEFAULT_SECRET =
-  "dealflow360-insecure-default-jwt-secret-replace-in-env-key-99881122";
+// DEFAULT_SECRET removed — JWT_SECRET must be set in environment variables.
+// See src/lib/auth/jwt.ts which throws at startup if JWT_SECRET is missing.
 
 /**
  * Centralized Public and Protected Route Lists
@@ -18,6 +18,8 @@ export const publicRoutes = [
   "/api/auth/logout",
   "/api/debug",
   "/api/quotes",
+  "/onboard",
+  "/api/onboard",
 ];
 
 export const protectedRoutes = [
@@ -37,9 +39,9 @@ export const protectedRoutes = [
 
 async function verifyToken(token: string) {
   try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || DEFAULT_SECRET
-    );
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return null; // Fail safe — signing is already blocked in jwt.ts
+    const secret = new TextEncoder().encode(jwtSecret);
     const { payload } = await jwtVerify(token, secret);
     return payload;
   } catch {

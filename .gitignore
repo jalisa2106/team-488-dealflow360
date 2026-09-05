@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# local test scripts & nested builds
+test_db.ts
+test_*.ts
+
+docker-compose.yml
