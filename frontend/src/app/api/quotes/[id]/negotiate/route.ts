@@ -5,7 +5,7 @@ import { submitNegotiation } from '@/lib/services/negotiation.service';
 // Note: authenticated by portal token, NOT by session cookie
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await req.json();
@@ -19,7 +19,7 @@ export async function POST(
       return NextResponse.json({ error: 'proposedTerms are required' }, { status: 400 });
     }
 
-    const result = await submitNegotiation(params.id, portalToken, proposedTerms, message);
+    const result = await submitNegotiation((await params).id, portalToken, proposedTerms, message);
 
     // Return RESTRICTED portal response — no margin/risk/approval internals
     return NextResponse.json({

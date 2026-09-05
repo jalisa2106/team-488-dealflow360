@@ -1,14 +1,31 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const PRODUCTS = [
-  { id: 'P-001', name: 'Laptop Pro 14', category: 'Hardware', variants: '3 (size)', price: '$1,200', unit: 'Each', tax: '15%', status: 'Active' },
-  { id: 'P-002', name: 'Onsite Setup Service', category: 'Services', variants: '–', price: '$450', unit: 'Each', tax: '10%', status: 'Active' },
-  { id: 'P-003', name: 'Docking Station', category: 'Hardware', variants: '3 (color)', price: '$180', unit: 'Each', tax: '15%', status: 'Active' },
-  { id: 'P-004', name: 'Care Plan 3 years', category: 'Subscription', variants: '–', price: '$40/mo', unit: 'Recurring', tax: '0%', status: 'Active' },
-];
-
 export default function ProductsPage() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        if (data.success && data.data) {
+          setProducts(data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch products', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const activeProducts = products.filter(p => p.active).length;
+  const archivedProducts = products.filter(p => !p.active).length;
+
   return (
     <div className="space-y-6">
       <div className="page-header page-header-row">
@@ -26,18 +43,18 @@ export default function ProductsPage() {
       <div className="kpi-grid">
         <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
           <div className="card-label">Total Products</div>
-          <div className="kpi-value text-[var(--fg)]">128</div>
-          <div className="kpi-sub">active, 6 archived</div>
+          <div className="kpi-value text-[var(--fg)]">{products.length}</div>
+          <div className="kpi-sub">{activeProducts} active, {archivedProducts} archived</div>
         </div>
         <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
-          <div className="card-label">Pricelists</div>
-          <div className="kpi-value text-[var(--fg)]">3</div>
-          <div className="kpi-sub">tiers, 2 currencies</div>
+          <div className="card-label">Categories</div>
+          <div className="kpi-value text-[var(--fg)]">{new Set(products.map(p => p.categoryId)).size}</div>
+          <div className="kpi-sub">product categories</div>
         </div>
         <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
-          <div className="card-label">Variants</div>
-          <div className="kpi-value text-[var(--fg)]">340</div>
-          <div className="kpi-sub">SKUs across all products</div>
+          <div className="card-label">Stocked</div>
+          <div className="kpi-value text-[var(--fg)]">{products.filter(p => p.inventories?.length > 0).length}</div>
+          <div className="kpi-sub">products in warehouses</div>
         </div>
       </div>
 
@@ -49,26 +66,36 @@ export default function ProductsPage() {
           <thead>
             <tr>
               <th>Product Name</th>
+              <th>SKU</th>
               <th>Category</th>
-              <th>Variants</th>
-              <th className="text-right">Price</th>
+              <th className="text-right">Base Price</th>
               <th>Unit</th>
-              <th className="text-right">Tax</th>
+              <th className="text-right">Tax %</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {PRODUCTS.map(row => (
-              <tr key={row.id} className="clickable" onClick={() => window.location.href = `/products/${row.id}`}>
-                <td style={{ fontWeight: 700 }}>{row.name}</td>
-                <td><span className="badge badge-neutral">{row.category}</span></td>
-                <td style={{ color: 'var(--fg-muted)' }}>{row.variants}</td>
-                <td className="text-right" style={{ fontWeight: 600 }}>{row.price}</td>
-                <td>{row.unit}</td>
-                <td className="text-right">{row.tax}</td>
-                <td><span className="badge badge-success">{row.status}</span></td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={7} style={{textAlign: 'center', padding: 20}}>Loading...</td></tr>
+            ) : products.length === 0 ? (
+              <tr><td colSpan={7} style={{textAlign: 'center', padding: 20}}>No products found.</td></tr>
+            ) : (
+              products.map(row => (
+                <tr key={row.id} className="clickable" onClick={() => window.location.href = `/products/${row.id}`}>
+                  <td style={{ fontWeight: 700 }}>{row.name}</td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{row.sku}</td>
+                  <td><span className="badge badge-neutral">{row.category?.name || 'Uncategorized'}</span></td>
+                  <td className="text-right" style={{ fontWeight: 600 }}>${Number(row.basePrice || 0).toLocaleString()}</td>
+                  <td>{row.unit}</td>
+                  <td className="text-right">{Number(row.taxPercent || 0)}%</td>
+                  <td>
+                    <span className={`badge ${row.active ? 'badge-success' : 'badge-neutral'}`}>
+                      {row.active ? 'Active' : 'Archived'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

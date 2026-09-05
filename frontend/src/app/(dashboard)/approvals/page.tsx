@@ -1,22 +1,42 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-const ROWS = [
-  { id: 'Q-1042', customer: 'Acme Corp', risk: 'HIGH', stage: 'Sales Manager', assigned: 'M. Shah', status: 'pending' },
-  { id: 'Q-1039', customer: 'Beta Industries', risk: 'MEDIUM', stage: 'Finance', assigned: 'R. Iyer', status: 'pending' },
-  { id: 'Q-1035', customer: 'Nova Retail', risk: 'LOW', stage: 'Auto-Approved', assigned: '–', status: 'approved' },
-  { id: 'Q-1031', customer: 'Orion Ltd', risk: 'MEDIUM', stage: 'Sales Manager', assigned: 'M. Shah', status: 'returned' },
-  { id: 'Q-1028', customer: 'Delta LLC', risk: 'HIGH', stage: 'Finance', assigned: 'R. Iyer', status: 'approved' },
-];
+import { useRouter } from 'next/navigation';
 
 const RISK_BADGE: Record<string, string> = {
-  HIGH: 'badge-danger', MEDIUM: 'badge-warning', LOW: 'badge-success',
+  CRITICAL: 'badge-danger', HIGH: 'badge-danger', MEDIUM: 'badge-warning', LOW: 'badge-success',
 };
 
 export default function ApprovalsPage() {
+  const router = useRouter();
   const [filterPending, setFilterPending] = useState(false);
-  const rows = filterPending ? ROWS.filter(r => r.status === 'pending') : ROWS;
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/approvals');
+        const data = await res.json();
+        if (data.success && data.data) {
+          setApprovals(data.data.approvals || []);
+        } else if (data.approvals) {
+          setApprovals(data.approvals);
+        }
+      } catch (err) {
+        console.error('Failed to fetch approvals', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const rows = filterPending ? approvals.filter(r => r.status === 'PENDING') : approvals;
+  
+  const pendingCount = approvals.filter(r => r.status === 'PENDING').length;
+  const returnedCount = approvals.filter(r => r.status === 'REVISION_REQUESTED' || r.status === 'REJECTED').length;
+  const approvedCount = approvals.filter(r => r.status === 'APPROVED').length;
 
   return (
     <div>
@@ -34,9 +54,9 @@ export default function ApprovalsPage() {
       </div>
 
       <div className="chip-row">
-        <span className="chip chip-warning">3 Pending</span>
-        <span className="chip chip-danger">1 Returned</span>
-        <span className="chip chip-success">12 Approved</span>
+        <span className="chip chip-warning">{pendingCount} Pending</span>
+        <span className="chip chip-danger">{returnedCount} Returned</span>
+        <span className="chip chip-success">{approvedCount} Approved</span>
       </div>
 
       <div className="table-wrap">
@@ -51,15 +71,25 @@ export default function ApprovalsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => (
-              <tr key={row.id} className="clickable" onClick={() => window.location.href = `/approvals/${row.id}`}>
-                <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{row.id}</td>
-                <td>{row.customer}</td>
-                <td><span className={`badge ${RISK_BADGE[row.risk]}`}>{row.risk}</span></td>
-                <td>{row.stage}</td>
-                <td>{row.assigned}</td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>Loading...</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>No approvals found.</td></tr>
+            ) : (
+              rows.map(row => (
+                <tr key={row.id} className="clickable" onClick={() => router.push(`/approvals/${row.id}`)}>
+                  <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{row.quote?.quoteNumber || row.quoteId}</td>
+                  <td>{row.quote?.customer?.companyName || 'Unknown'}</td>
+                  <td>
+                    <span className={`badge ${RISK_BADGE[row.quote?.riskLevel] || 'badge-neutral'}`}>
+                      {row.quote?.riskLevel || 'UNKNOWN'}
+                    </span>
+                  </td>
+                  <td>{row.role}</td>
+                  <td>{row.reviewer?.name || 'Unassigned'}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

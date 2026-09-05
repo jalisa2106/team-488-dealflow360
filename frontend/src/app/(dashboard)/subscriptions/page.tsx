@@ -1,18 +1,36 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const ROWS = [
-  { id: 'SUB-001', customer: 'Acme Corp', plan: 'Care Plan 2yr', cycle: 'Monthly', nextBill: 'Sep 15', status: 'Active' },
-  { id: 'SUB-002', customer: 'Beta Industries', plan: 'Support SLA', cycle: 'Quarterly', nextBill: 'Nov 1', status: 'Active' },
-  { id: 'SUB-003', customer: 'Delta LLC', plan: 'Care Plan 1yr', cycle: 'Monthly', nextBill: '–', status: 'Paused' },
-  { id: 'SUB-004', customer: 'Nova Retail', plan: 'Support SLA', cycle: 'Monthly', nextBill: '–', status: 'Cancelled' },
-];
-
 const STATUS_BADGE: Record<string, string> = {
-  Active: 'badge-success', Paused: 'badge-warning', Cancelled: 'badge-danger',
+  ACTIVE: 'badge-success', PAUSED: 'badge-warning', CANCELLED: 'badge-danger',
 };
 
 export default function SubscriptionsPage() {
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/subscriptions');
+        const data = await res.json();
+        if (data.success && data.data) {
+          setSubscriptions(data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch subscriptions', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const activeCount = subscriptions.filter(s => s.status === 'ACTIVE').length;
+  const pausedCount = subscriptions.filter(s => s.status === 'PAUSED').length;
+  const cancelledCount = subscriptions.filter(s => s.status === 'CANCELLED').length;
+
   return (
     <div>
       <div className="page-header page-header-row">
@@ -24,9 +42,9 @@ export default function SubscriptionsPage() {
       </div>
 
       <div className="chip-row">
-        <span className="chip chip-success">18 Active</span>
-        <span className="chip chip-warning">2 Paused</span>
-        <span className="chip chip-danger">3 Cancelled</span>
+        <span className="chip chip-success">{activeCount} Active</span>
+        <span className="chip chip-warning">{pausedCount} Paused</span>
+        <span className="chip chip-danger">{cancelledCount} Cancelled</span>
       </div>
 
       <div className="table-wrap">
@@ -41,15 +59,23 @@ export default function SubscriptionsPage() {
             </tr>
           </thead>
           <tbody>
-            {ROWS.map(row => (
-              <tr key={row.id} className="clickable" onClick={() => window.location.href = `/subscriptions/${row.id}`}>
-                <td style={{ fontWeight: 600 }}>{row.customer}</td>
-                <td>{row.plan}</td>
-                <td>{row.cycle}</td>
-                <td style={{ color: row.nextBill === '–' ? 'var(--fg-muted)' : 'inherit' }}>{row.nextBill}</td>
-                <td><span className={`badge ${STATUS_BADGE[row.status]}`}>{row.status}</span></td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>Loading...</td></tr>
+            ) : subscriptions.length === 0 ? (
+              <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>No subscriptions found.</td></tr>
+            ) : (
+              subscriptions.map(row => (
+                <tr key={row.id} className="clickable" onClick={() => window.location.href = `/subscriptions/${row.id}`}>
+                  <td style={{ fontWeight: 600 }}>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
+                  <td>{row.plan?.name || 'Unknown'}</td>
+                  <td>{row.plan?.frequency || 'Monthly'}</td>
+                  <td style={{ color: row.currentPeriodEnd ? 'inherit' : 'var(--fg-muted)' }}>
+                    {row.currentPeriodEnd ? new Date(row.currentPeriodEnd).toLocaleDateString() : '–'}
+                  </td>
+                  <td><span className={`badge ${STATUS_BADGE[row.status] || 'badge-neutral'}`}>{row.status}</span></td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

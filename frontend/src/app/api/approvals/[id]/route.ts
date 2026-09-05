@@ -4,12 +4,12 @@ import { actionApprovalRequest, getApprovalRequest } from '@/lib/services/approv
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getAuthSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    const approval = await getApprovalRequest(params.id);
+    const approval = await getApprovalRequest((await params).id);
     if (!['ADMIN', 'SALES_MANAGER', 'FINANCE'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -21,7 +21,7 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getAuthSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -34,7 +34,7 @@ export async function POST(
     if (!['APPROVE', 'REJECT', 'REQUEST_REVISION'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-    const result = await actionApprovalRequest(params.id, session.userId, action as 'APPROVE' | 'REJECT' | 'REQUEST_REVISION', reason);
+    const result = await actionApprovalRequest((await params).id, session.userId, action as 'APPROVE' | 'REJECT' | 'REQUEST_REVISION', reason);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Action failed' }, { status: 400 });
