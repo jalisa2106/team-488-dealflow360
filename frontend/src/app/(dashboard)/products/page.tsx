@@ -2,6 +2,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+const FILTER_OPTS = ['All', 'Active', 'Archived', 'Hardware', 'Service', 'Subscription'];
+const GROUP_OPTS  = ['None', 'Category', 'Type', 'Status'];
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
