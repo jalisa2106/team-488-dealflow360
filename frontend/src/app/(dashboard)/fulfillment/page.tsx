@@ -53,14 +53,21 @@ export default function FulfillmentPage() {
               </thead>
               <tbody>
                 {inventory.map((row: any, i: number) => {
-                  const inStock = Number(row.quantityOnHand);
-                  const reserved = Number(row.quantityReserved || 0);
-                  const available = Number(row.quantityAvailable);
+                  const safeNum = (val: any, fallback = 0) => {
+                    if (val === undefined || val === null) return fallback;
+                    const n = Number(val);
+                    return Number.isNaN(n) ? fallback : n;
+                  };
+
+                  const available = safeNum(row.quantityAvailable ?? row.available);
+                  const reserved = safeNum(row.quantityReserved ?? row.reserved, 0);
+                  const inStock = safeNum(row.quantityOnHand ?? row.quantity, available + reserved);
+
                   return (
                     <tr key={i}>
-                      <td style={{ fontWeight: 600 }}>{row.warehouse?.name}</td>
-                      <td>{row.product?.name}</td>
-                      <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{row.product?.sku}</td>
+                      <td style={{ fontWeight: 600 }}>{row.warehouse?.name || '—'}</td>
+                      <td>{row.product?.name || '—'}</td>
+                      <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{row.product?.sku || '—'}</td>
                       <td className="text-right">{inStock}</td>
                       <td className="text-right">{reserved}</td>
                       <td className="text-right">
