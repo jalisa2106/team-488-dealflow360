@@ -3,6 +3,7 @@
    ===================================================== */
 
 :root {
+  /* DealFlow360 Custom Theme Tokens */
   --bg: #F4F3EF;
   --surface: #FFFFFF;
   --surface-muted: #ECEBE6;
@@ -38,6 +39,28 @@
 
   --sidebar-w: 240px;
   --topbar-h: 56px;
+
+  /* shadcn/ui Theme Variables (Neo-Brutalist Palette Mapping) */
+  --background: 48 13% 95%; /* #F4F3EF */
+  --foreground: 0 0% 9%;    /* #171717 */
+  --card: 0 0% 100%;        /* #FFFFFF */
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --primary-hsl: 224 76% 48%; /* #1D4ED8 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 48 9% 91%;     /* #ECEBE6 */
+  --secondary-foreground: 0 0% 9%;
+  --muted: 48 9% 91%;
+  --muted-foreground: 0 0% 40%;
+  --accent-hsl: 45 86% 62%;   /* #F2C94C */
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 72% 51%;   /* #B91C1C */
+  --destructive-foreground: 0 0% 100%;
+  --border-hsl: 0 0% 11%;     /* #1C1C1C */
+  --input: 0 0% 11%;
+  --ring: 224 76% 48%;
+  --radius: 0.375rem;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
