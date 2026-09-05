@@ -10,25 +10,24 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') ?? '1');
   const limit = parseInt(searchParams.get('limit') ?? '20');
-  const status = searchParams.get('status') ?? undefined;
+  // Accept either a single status or comma-separated list: ?status=DRAFT,PENDING_APPROVAL
+  const rawStatus = searchParams.get('status') ?? undefined;
+  const status = rawStatus ? rawStatus.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const customerId = searchParams.get('customerId') ?? undefined;
+  const search = searchParams.get('search') ?? undefined;
 
   // Sales reps only see their own quotes (unless admin/manager)
   const salesRepId = ['ADMIN', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'].includes(session.role)
     ? (searchParams.get('salesRepId') ?? undefined)
     : session.userId;
 
-  const result = await listQuotes({ salesRepId, customerId, status, page, limit });
+  const result = await listQuotes({ salesRepId, customerId, status, search, page, limit });
   return NextResponse.json(result);
 }
 
 // POST /api/quotes — create a new quote
 export async function POST(req: NextRequest) {
-  let session = await getAuthSession();
-  if (!session) {
-    // TEMPORARY BYPASS FOR TESTING
-    session = { userId: "E8DF3E16-D03C-491B-BA1D-CF1FF00C6FC4", role: "ADMIN", sub: "E8DF3E16-D03C-491B-BA1D-CF1FF00C6FC4" } as any;
-  }
+  const session = await getAuthSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   if (!['ADMIN', 'SALES_REP', 'SALES_MANAGER'].includes(session.role as string)) {
