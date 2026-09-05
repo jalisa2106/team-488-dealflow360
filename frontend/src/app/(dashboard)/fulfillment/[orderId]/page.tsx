@@ -1,18 +1,49 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-const ALLOCATIONS = [
-  { warehouse: 'Main Warehouse', qty: 18, shipments: 1, cost: 42 },
-  { warehouse: 'East Depot', qty: 6, shipments: 1, cost: 29 },
-];
 
 export default function FulfillmentDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const [accepted, setAccepted] = useState(false);
   const [overriding, setOverriding] = useState(false);
-  const [allocs, setAllocs] = useState(ALLOCATIONS);
+  const [allocs, setAllocs] = useState<any[]>([]);
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  
+  // Unwrap params using React.use() or await inside useEffect
+  const [orderId, setOrderId] = useState<string>('');
+
+  useEffect(() => {
+    params.then(p => setOrderId(p.orderId));
+  }, [params]);
+
+  useEffect(() => {
+    if (!orderId) return;
+    async function fetchData() {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrder(data);
+          if (data.fulfillmentAllocations?.length) {
+            setAllocs(data.fulfillmentAllocations.map((a: any) => ({
+              warehouseId: a.warehouseId,
+              warehouse: a.warehouse.name,
+              qty: a.quantity,
+              shipments: 1, // simplified
+              cost: a.shippingCost
+            })));
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [orderId]);
 
   const totalQty = allocs.reduce((s, a) => s + a.qty, 0);
   const totalCost = allocs.reduce((s, a) => s + a.cost, 0);
@@ -23,16 +54,49 @@ export default function FulfillmentDetailPage({ params }: { params: Promise<{ or
     router.push('/invoices');
   };
 
+  const handleSaveOverride = async () => {
+    if (!order || !order.quote?.quoteLines?.[0]) return;
+    
+    const productId = order.quote.quoteLines[0].productId;
+    const requestedQuantity = order.quote.quoteLines[0].quantity;
+    
+    const manualOverride = allocs.map(a => ({
+      warehouseId: a.warehouseId,
+      allocated: a.qty
+    }));
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}/fulfillment/override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          requestedQuantity,
+          manualOverride,
+          overrideReason: 'Manual adjustment by Operations'
+        })
+      });
+      if (!res.ok) throw new Error('Override failed');
+      setOverriding(false);
+      alert('Override saved!');
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  if (loading) return <div style={{ padding: 40 }}>Loading order details...</div>;
+  if (!order) return <div style={{ padding: 40 }}>Order not found.</div>;
+
   return (
     <div>
       <Link href="/fulfillment" className="back-link">← Back to Fulfillment</Link>
 
       <div className="page-header page-header-row">
         <div>
-          <h1 className="page-title">Fulfillment Detail: Q-1042</h1>
-          <p className="support-text">Opened by clicking an order row on the Fulfillment list</p>
+          <h1 className="page-title">Fulfillment Detail: {order.quote?.quoteNumber || orderId}</h1>
+          <p className="support-text">Customer: {order.quote?.customer?.companyName}</p>
         </div>
-        <span className="badge badge-warning">Split Pending</span>
+        <span className="badge badge-warning">{order.status.replace('_', ' ')}</span>
       </div>
 
       {/* Warehouse Split Table */}
@@ -94,8 +158,8 @@ export default function FulfillmentDetailPage({ params }: { params: Promise<{ or
         <div className="action-row">
           {overriding ? (
             <>
-              <button className="btn btn-primary" onClick={() => { setOverriding(false); }}>Save Override</button>
-              <button className="btn btn-secondary" onClick={() => { setAllocs(ALLOCATIONS); setOverriding(false); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveOverride}>Save Override</button>
+              <button className="btn btn-secondary" onClick={() => { setOverriding(false); }}>Cancel</button>
             </>
           ) : (
             <>

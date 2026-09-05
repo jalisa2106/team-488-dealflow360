@@ -82,7 +82,22 @@ export default function CustomerPortalPage() {
   };
 
   const handleConfirm = async () => {
-    setResult({ confirmed: true });
+    if (!quote) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/portal/quotes/${token}/confirm`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Confirmation failed');
+      }
+      setResult({ confirmed: true });
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Compute totals from proposed discounts

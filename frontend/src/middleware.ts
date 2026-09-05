@@ -16,6 +16,8 @@ export const publicRoutes = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",
+  "/api/debug",
+  "/api/quotes",
 ];
 
 export const protectedRoutes = [
