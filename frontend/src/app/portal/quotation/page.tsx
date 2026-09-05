@@ -24,18 +24,33 @@ export default function CustomerPortalPage() {
     setConfirmed(true);
   };
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Customer Nav */}
-      <header className="portal-topbar">
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: 16, marginRight: 24 }}>DealFlow360</span>
-        <nav style={{ display: 'flex', gap: 0 }}>
-          {['My Quotation', 'Messages', 'Profile'].map(tab => (
-            <a key={tab} href="#" className="topbar-tab" style={{ color: tab === 'My Quotation' ? '#fff' : 'rgba(255,255,255,0.6)', borderBottom: tab === 'My Quotation' ? '3px solid #fff' : '3px solid transparent', padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', fontWeight: tab === 'My Quotation' ? 700 : 500, fontSize: 13, textDecoration: 'none' }}>
-              {tab}
-            </a>
-          ))}
-        </nav>
+      <header className="portal-topbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 16, marginRight: 24 }}>DealFlow360</span>
+          <nav style={{ display: 'flex', gap: 0 }}>
+            {['My Quotation', 'Messages', 'Profile'].map(tab => (
+              <a key={tab} href="#" className="topbar-tab" style={{ color: tab === 'My Quotation' ? '#fff' : 'rgba(255,255,255,0.6)', borderBottom: tab === 'My Quotation' ? '3px solid #fff' : '3px solid transparent', padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', fontWeight: tab === 'My Quotation' ? 700 : 500, fontSize: 13, textDecoration: 'none' }}>
+                {tab}
+              </a>
+            ))}
+          </nav>
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="btn btn-secondary"
+          style={{ fontSize: '11px', padding: '4px 10px', height: '28px' }}
+        >
+          Sign Out
+        </button>
       </header>
 
       <main style={{ flex: 1, padding: '32px', maxWidth: 860, margin: '0 auto', width: '100%' }}>

@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuth } from "@/lib/auth/rbac";
+import { requireRole } from "@/lib/auth/rbac";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    await requireRole(["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE", "OPERATIONS"]);
 
     const products = await prisma.product.findMany({
       include: {
@@ -23,8 +23,20 @@ export async function GET() {
     return NextResponse.json({ success: true, data: products });
   } catch (error: any) {
     if (error.name === "UnauthorizedError") {
-      return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: error.message } }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: { code: "UNAUTHORIZED", message: error.message } },
+        { status: 401 }
+      );
     }
-    return NextResponse.json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch products" } }, { status: 500 });
+    if (error.name === "ForbiddenError") {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: error.message } },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch products" } },
+      { status: 500 }
+    );
   }
 }

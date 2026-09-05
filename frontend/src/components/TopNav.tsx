@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserRole, User, DEMO_USERS } from '@/lib/types';
+import { UserRole, User } from '@/lib/types';
 
 interface NavItem {
   href: string;
@@ -26,7 +26,6 @@ const NAV_ITEMS: NavItem[] = [
 export default function TopNav() {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -34,27 +33,12 @@ export default function TopNav() {
       .then(data => {
         if (data.success && data.data?.user) {
           setCurrentUser(data.data.user);
+        } else if (data.user) {
+          setCurrentUser(data.user);
         }
       })
       .catch(() => {});
   }, [pathname]);
-
-  const handleRoleSwitch = async (role: UserRole) => {
-    setIsSwitching(true);
-    try {
-      const res = await fetch('/api/auth/demo-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        window.location.href = data.data.redirectUrl;
-      }
-    } catch {
-      setIsSwitching(false);
-    }
-  };
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -97,32 +81,16 @@ export default function TopNav() {
         })}
       </nav>
 
-      {/* Role Indicator & Bypass Quick Switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.12)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }}>
-          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>Role:</span>
-          <select
-            value={currentRole}
-            onChange={(e) => handleRoleSwitch(e.target.value as UserRole)}
-            disabled={isSwitching}
-            style={{
-              background: 'var(--fg)',
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '3px',
-              padding: '2px 6px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            {Object.keys(DEMO_USERS).map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* User Session Info & Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+        {currentUser && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', fontSize: '12px' }}>
+            <span style={{ fontWeight: 600 }}>{currentUser.name}</span>
+            <span className="badge badge-info" style={{ fontSize: '10px', textTransform: 'uppercase' }}>
+              {currentUser.role}
+            </span>
+          </div>
+        )}
 
         <button
           onClick={handleLogout}
