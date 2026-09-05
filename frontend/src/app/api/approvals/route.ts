@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/require-role';
 
 export async function GET(req: NextRequest) {
-  const result = requireRole(req, ['ADMIN', 'SALES_MANAGER', 'FINANCE']);
+  const result = await requireRole(req, ['ADMIN', 'SALES_MANAGER', 'FINANCE']);
   if ('response' in result) return result.response;
 
   return NextResponse.json({

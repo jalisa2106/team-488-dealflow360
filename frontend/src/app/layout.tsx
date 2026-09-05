@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   description: "Sales & Operations Command Center",
 };
 
+import { Providers } from "@/components/providers";
+
 export default function RootLayout({
   children,
 }: {
@@ -19,7 +21,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={geistSans.variable}>
-      <body>{children}</body>
+      <body>
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

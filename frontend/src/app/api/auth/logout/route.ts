@@ -1,16 +1,12 @@
-import { NextResponse } from 'next/server';
-import { DEMO_ROLE_COOKIE } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import { clearSessionCookie } from "@/lib/auth/session";
 
 export async function POST() {
-  const response = NextResponse.json({
-    success: true,
-    data: { message: 'Logged out successfully.' },
-  });
-
-  response.cookies.set(DEMO_ROLE_COOKIE, '', {
-    path: '/',
-    expires: new Date(0),
-  });
-
-  return response;
+  try {
+    await clearSessionCookie();
+    return NextResponse.json({ message: "Logged out successfully" });
+  } catch (error: any) {
+    console.error("Logout error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

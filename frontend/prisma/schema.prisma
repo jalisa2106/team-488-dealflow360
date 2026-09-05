@@ -1,0 +1,567 @@
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// Core / Auth / User
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  name          String
+  role          String   @default("SALES_REP") // ADMIN, SALES_REP, SALES_MANAGER, FINANCE, OPERATIONS, CUSTOMER
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime2
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime2
+
+  quotes                Quote[]            @relation("SalesRepQuotes")
+  customers             Customer[]         @relation("PortalUserCustomers")
+  reviewedApprovals     ApprovalRequest[]  @relation("ReviewerApprovals")
+  approvalActions       ApprovalAction[]   @relation("ActorApprovalActions")
+  auditLogs             AuditLog[]         @relation("ActorAuditLogs")
+  notifications         Notification[]     @relation("RecipientNotifications")
+
+  @@index([role])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// Customers & Tiers
+// -----------------------------------------------------------------------------
+
+model CustomerTier {
+  id                     String         @id @default(uuid())
+  name                   String         @unique // BRONZE, SILVER, GOLD
+  defaultDiscountPercent Decimal        @default(0) @map("default_discount_percent") @db.Decimal(5, 2)
+  createdAt              DateTime       @default(now()) @map("created_at") @db.DateTime2
+
+  customers              Customer[]
+  discountRules          DiscountRule[]
+
+  @@map("customer_tiers")
+}
+
+model Customer {
+  id           String        @id @default(uuid())
+  companyName  String        @map("company_name")
+  contactName  String?       @map("contact_name")
+  email        String?
+  tierId       String?       @map("tier_id")
+  currency     String        @default("INR")
+  active       Boolean       @default(true)
+  portalUserId String?       @map("portal_user_id")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime2
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.DateTime2
+
+  tier         CustomerTier? @relation(fields: [tierId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  portalUser   User?         @relation("PortalUserCustomers", fields: [portalUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotes       Quote[]
+  negotiations Negotiation[]
+
+  @@index([tierId])
+  @@index([active])
+  @@map("customers")
+}
+
+// -----------------------------------------------------------------------------
+// Products & Pricing
+// -----------------------------------------------------------------------------
+
+model ProductCategory {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  createdAt     DateTime       @default(now()) @map("created_at") @db.DateTime2
+
+  products      Product[]
+  discountRules DiscountRule[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id          String          @id @default(uuid())
+  name        String
+  sku         String          @unique
+  categoryId  String?         @map("category_id")
+  type        String          @default("HARDWARE") // HARDWARE, SERVICE, SUBSCRIPTION
+  unit        String          @default("unit")
+  basePrice   Decimal         @map("base_price") @db.Decimal(14, 2)
+  costPrice   Decimal         @map("cost_price") @db.Decimal(14, 2)
+  taxPercent  Decimal         @default(0) @map("tax_percent") @db.Decimal(5, 2)
+  description String?
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.DateTime2
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.DateTime2
+
+  category               ProductCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  priceListItems         PriceListItem[]
+  quoteLines             QuoteLine[]
+  inventories            Inventory[]
+  fulfillmentAllocations FulfillmentAllocation[]
+  primaryCoPurchases     ProductCoPurchase[]     @relation("ProductCoPurchasesA")
+  secondaryCoPurchases   ProductCoPurchase[]     @relation("ProductCoPurchasesB")
+  primaryUpsellRules     UpsellRule[]            @relation("ProductUpsellsA")
+  secondaryUpsellRules   UpsellRule[]            @relation("ProductUpsellsB")
+
+  @@index([categoryId])
+  @@index([active])
+  @@index([type])
+  @@map("products")
+}
+
+model PriceList {
+  id        String          @id @default(uuid())
+  name      String
+  currency  String          @default("INR")
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @map("created_at") @db.DateTime2
+
+  items     PriceListItem[]
+
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String    @id @default(uuid())
+  priceListId String    @map("price_list_id")
+  productId   String    @map("product_id")
+  price       Decimal   @db.Decimal(14, 2)
+
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([priceListId, productId])
+  @@map("price_list_items")
+}
+
+// -----------------------------------------------------------------------------
+// Rules & Subscription Plans
+// -----------------------------------------------------------------------------
+
+model DiscountRule {
+  id                 String           @id @default(uuid())
+  customerTierId     String?          @map("customer_tier_id")
+  categoryId         String?          @map("category_id")
+  maxDiscountPercent Decimal          @map("max_discount_percent") @db.Decimal(5, 2)
+  priority           Int              @default(0)
+  active             Boolean          @default(true)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.DateTime2
+
+  customerTier       CustomerTier?    @relation(fields: [customerTierId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  category           ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([customerTierId])
+  @@index([categoryId])
+  @@map("discount_rules")
+}
+
+model ApprovalRule {
+  id             String   @id @default(uuid())
+  minRiskScore   Int      @map("min_risk_score")
+  maxRiskScore   Int?     @map("max_risk_score")
+  requiredRoles  String   @map("required_roles") // Comma-separated: "SALES_MANAGER,FINANCE"
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  @@map("approval_rules")
+}
+
+model SubscriptionPlan {
+  id                        String           @id @default(uuid())
+  name                      String
+  frequency                 String           @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  price                     Decimal          @db.Decimal(14, 2)
+  prorationEnabled          Boolean          @default(true) @map("proration_enabled")
+  cancellationRefundEnabled Boolean          @default(true) @map("cancellation_refund_enabled")
+  active                    Boolean          @default(true)
+  createdAt                 DateTime         @default(now()) @map("created_at") @db.DateTime2
+
+  quoteLines                QuoteLine[]
+  subscriptions             Subscription[]
+
+  @@map("subscription_plans")
+}
+
+// -----------------------------------------------------------------------------
+// Quotes & Lines
+// -----------------------------------------------------------------------------
+
+model Quote {
+  id             String      @id @default(uuid())
+  quoteNumber    String      @unique @map("quote_number")
+  customerId     String      @map("customer_id")
+  salesRepId     String      @map("sales_rep_id")
+  status         String      @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, UNDER_NEGOTIATION, CONFIRMED, FULFILLING, COMPLETED, CANCELLED
+  subtotal       Decimal     @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal     @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  total          Decimal     @default(0) @db.Decimal(14, 2)
+  marginAmount   Decimal     @default(0) @map("margin_amount") @db.Decimal(14, 2)
+  marginPercent  Decimal     @default(0) @map("margin_percent") @db.Decimal(6, 2)
+  riskScore      Int         @default(0) @map("risk_score")
+  riskLevel      String      @default("LOW") @map("risk_level") // LOW, MEDIUM, HIGH, CRITICAL
+  portalToken    String      @unique @default(uuid()) @map("portal_token")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.DateTime2
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.DateTime2
+
+  customer         Customer           @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  salesRep         User               @relation("SalesRepQuotes", fields: [salesRepId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quoteLines       QuoteLine[]
+  approvalRequests ApprovalRequest[]
+  orders           Order[]
+  negotiations     Negotiation[]
+  dealHealthEvents DealHealthEvent[]
+  alerts           Alert[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([salesRepId])
+  @@index([portalToken])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id                 String            @id @default(uuid())
+  quoteId            String            @map("quote_id")
+  productId          String            @map("product_id")
+  quantity           Decimal           @db.Decimal(12, 2)
+  unitPrice          Decimal           @map("unit_price") @db.Decimal(14, 2)
+  discountPercent    Decimal           @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount     Decimal           @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  lineTotal          Decimal           @default(0) @map("line_total") @db.Decimal(14, 2)
+  marginAmount       Decimal           @default(0) @map("margin_amount") @db.Decimal(14, 2)
+  billingType        String            @default("ONE_TIME") @map("billing_type") // ONE_TIME, RECURRING
+  subscriptionPlanId String?           @map("subscription_plan_id")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.DateTime2
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.DateTime2
+
+  quote              Quote             @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product            Product           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subscriptionPlan   SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  subscriptions      Subscription[]
+  negotiationMessages NegotiationMessage[]
+
+  @@index([quoteId])
+  @@index([productId])
+  @@map("quote_lines")
+}
+
+// -----------------------------------------------------------------------------
+// Approvals
+// -----------------------------------------------------------------------------
+
+model ApprovalRequest {
+  id         String         @id @default(uuid())
+  quoteId    String         @map("quote_id")
+  step       Int            @default(1)
+  role       String         // SALES_MANAGER, FINANCE
+  status     String         @default("PENDING") // PENDING, APPROVED, REJECTED, REVISION_REQUESTED
+  reviewerId String?        @map("reviewer_id")
+  reason     String?
+  createdAt  DateTime       @default(now()) @map("created_at") @db.DateTime2
+  actedAt    DateTime?      @map("acted_at") @db.DateTime2
+
+  quote      Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reviewer   User?          @relation("ReviewerApprovals", fields: [reviewerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  actions    ApprovalAction[]
+
+  @@index([quoteId])
+  @@index([status])
+  @@map("approval_requests")
+}
+
+model ApprovalAction {
+  id                String          @id @default(uuid())
+  approvalRequestId String          @map("approval_request_id")
+  actorId           String          @map("actor_id")
+  action            String
+  reason            String?
+  createdAt         DateTime        @default(now()) @map("created_at") @db.DateTime2
+
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  actor             User            @relation("ActorApprovalActions", fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([approvalRequestId])
+  @@map("approval_actions")
+}
+
+// -----------------------------------------------------------------------------
+// Fulfillment & Inventory
+// -----------------------------------------------------------------------------
+
+model Warehouse {
+  id               String                  @id @default(uuid())
+  name             String
+  code             String                  @unique
+  shippingBaseCost Decimal                 @default(0) @map("shipping_base_cost") @db.Decimal(10, 2)
+  active           Boolean                 @default(true)
+  createdAt        DateTime                @default(now()) @map("created_at") @db.DateTime2
+
+  inventories      Inventory[]
+  fulfillmentAllocations FulfillmentAllocation[]
+
+  @@map("warehouses")
+}
+
+model Inventory {
+  id                String    @id @default(uuid())
+  warehouseId       String    @map("warehouse_id")
+  productId         String    @map("product_id")
+  quantityAvailable Decimal   @default(0) @map("quantity_available") @db.Decimal(12, 2)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime2
+
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([warehouseId, productId])
+  @@index([productId, warehouseId])
+  @@map("inventory")
+}
+
+model Order {
+  id          String            @id @default(uuid())
+  quoteId     String            @map("quote_id")
+  orderNumber String            @unique @map("order_number")
+  status      String            @default("PENDING") // PENDING, PARTIAL, FULFILLED, BACKORDERED
+  createdAt   DateTime          @default(now()) @map("created_at") @db.DateTime2
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.DateTime2
+
+  quote       Quote             @relation(fields: [quoteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fulfillmentAllocations FulfillmentAllocation[]
+  subscriptions          Subscription[]
+  invoices               Invoice[]
+
+  @@index([quoteId])
+  @@map("orders")
+}
+
+model FulfillmentAllocation {
+  id           String    @id @default(uuid())
+  orderId      String    @map("order_id")
+  warehouseId  String    @map("warehouse_id")
+  productId    String    @map("product_id")
+  quantity     Decimal   @db.Decimal(12, 2)
+  shippingCost Decimal   @default(0) @map("shipping_cost") @db.Decimal(10, 2)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime2
+
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([orderId])
+  @@map("fulfillment_allocations")
+}
+
+// -----------------------------------------------------------------------------
+// Billing & Subscriptions
+// -----------------------------------------------------------------------------
+
+model Subscription {
+  id                 String           @id @default(uuid())
+  quoteLineId        String?          @map("quote_line_id")
+  orderId            String?          @map("order_id")
+  subscriptionPlanId String           @map("subscription_plan_id")
+  quantity           Decimal          @default(1) @db.Decimal(12, 2)
+  status             String           @default("ACTIVE")
+  startedAt          DateTime         @default(now()) @map("started_at") @db.DateTime2
+  createdAt          DateTime         @default(now()) @map("created_at") @db.DateTime2
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.DateTime2
+
+  quoteLine          QuoteLine?       @relation(fields: [quoteLineId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  order              Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  billingSchedules   BillingSchedule[]
+
+  @@map("subscriptions")
+}
+
+model BillingSchedule {
+  id             String   @id @default(uuid())
+  subscriptionId String   @map("subscription_id")
+  billingDate    DateTime @map("billing_date") @db.Date
+  amount         Decimal  @db.Decimal(14, 2)
+  status         String   @default("PENDING") // PENDING, BILLED, PAID
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([subscriptionId])
+  @@map("billing_schedules")
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  orderId       String        @map("order_id")
+  invoiceNumber String        @unique @map("invoice_number")
+  type          String        @default("ONE_TIME") // ONE_TIME, RECURRING
+  amount        Decimal       @db.Decimal(14, 2)
+  status        String        @default("DRAFT") // DRAFT, ISSUED, PAID, CANCELLED
+  dueDate       DateTime?     @map("due_date") @db.Date
+  createdAt     DateTime      @default(now()) @map("created_at") @db.DateTime2
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments      Payment[]
+  creditNotes   CreditNote[]
+
+  @@index([orderId])
+  @@map("invoices")
+}
+
+model Payment {
+  id         String   @id @default(uuid())
+  invoiceId  String   @map("invoice_id")
+  amount     Decimal  @db.Decimal(14, 2)
+  method     String?
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.DateTime2
+
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("payments")
+}
+
+model CreditNote {
+  id        String   @id @default(uuid())
+  invoiceId String   @map("invoice_id")
+  amount    Decimal  @db.Decimal(14, 2)
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("credit_notes")
+}
+
+// -----------------------------------------------------------------------------
+// Negotiations
+// -----------------------------------------------------------------------------
+
+model Negotiation {
+  id               String               @id @default(uuid())
+  quoteId          String               @map("quote_id")
+  customerId       String               @map("customer_id")
+  status           String               @default("OPEN") // OPEN, SUBMITTED, ACCEPTED, REJECTED
+  proposedDiscount Decimal?             @map("proposed_discount") @db.Decimal(5, 2)
+  message          String?
+  createdAt        DateTime             @default(now()) @map("created_at") @db.DateTime2
+
+  quote            Quote                @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customer         Customer             @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messages         NegotiationMessage[]
+
+  @@index([quoteId])
+  @@map("negotiations")
+}
+
+model NegotiationMessage {
+  id            String       @id @default(uuid())
+  negotiationId String       @map("negotiation_id")
+  quoteLineId   String?      @map("quote_line_id")
+  authorRole    String       @map("author_role")
+  message       String
+  createdAt     DateTime     @default(now()) @map("created_at") @db.DateTime2
+
+  negotiation   Negotiation  @relation(fields: [negotiationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  quoteLine     QuoteLine?   @relation(fields: [quoteLineId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([negotiationId])
+  @@map("negotiation_messages")
+}
+
+// -----------------------------------------------------------------------------
+// Deal Health, Alerts, Recommendations & Auditing
+// -----------------------------------------------------------------------------
+
+model DealHealthEvent {
+  id        String          @id @default(uuid())
+  quoteId   String          @map("quote_id")
+  score     Int
+  level     String          // HEALTHY, WATCH, AT_RISK, CRITICAL
+  reasons   String          @default("[]") // JSON stringified array
+  createdAt DateTime        @default(now()) @map("created_at") @db.DateTime2
+
+  quote     Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([quoteId, createdAt])
+  @@map("deal_health_events")
+}
+
+model Alert {
+  id           String        @id @default(uuid())
+  quoteId      String?       @map("quote_id")
+  type         String
+  severity     String        @default("LOW") // LOW, MEDIUM, HIGH
+  message      String
+  acknowledged Boolean       @default(false)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime2
+
+  quote        Quote?        @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([quoteId])
+  @@map("alerts")
+}
+
+model ProductCoPurchase {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  coProductId String   @map("co_product_id")
+  frequency   Decimal  @db.Decimal(5, 2)
+
+  product     Product  @relation("ProductCoPurchasesA", fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  coProduct   Product  @relation("ProductCoPurchasesB", fields: [coProductId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([productId, coProductId])
+  @@map("product_co_purchases")
+}
+
+model UpsellRule {
+  id                 String   @id @default(uuid())
+  productId          String   @map("product_id")
+  suggestedProductId String   @map("suggested_product_id")
+  promotion          Boolean  @default(false)
+  minMarginPercent   Decimal  @default(0) @map("min_margin_percent") @db.Decimal(5, 2)
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  product            Product  @relation("ProductUpsellsA", fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  suggestedProduct   Product  @relation("ProductUpsellsB", fields: [suggestedProductId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("upsell_rules")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  actorId    String?  @map("actor_id")
+  beforeData String?  @map("before_data")
+  afterData  String?  @map("after_data")
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  actor      User?    @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([entityType, entityId, createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  recipientId String?  @map("recipient_id")
+  type        String
+  message     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime2
+
+  recipient   User?    @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([recipientId, read])
+  @@map("notifications")
+}

@@ -1,78 +1,46 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getRoleFromCookieString } from '@/lib/auth';
-import { UserRole } from '@/lib/types';
+import { type NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
+import { DEMO_ROLE_COOKIE } from "@/lib/auth";
 
-// Role-based allowed path prefixes for internal vs customer domain
-const ROLE_ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
-  '/admin': ['ADMIN'],
-  '/approvals': ['ADMIN', 'SALES_MANAGER', 'FINANCE'],
-  '/fulfillment': ['ADMIN', 'OPERATIONS', 'SALES_MANAGER'],
-  '/invoices': ['ADMIN', 'FINANCE', 'SALES_MANAGER'],
-  '/subscriptions': ['ADMIN', 'FINANCE', 'SALES_REP', 'SALES_MANAGER'],
-  '/reports': ['ADMIN', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS', 'SALES_REP'],
-  '/deal-health': ['ADMIN', 'SALES_MANAGER', 'SALES_REP', 'FINANCE'],
-  '/products': ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'],
-  '/quotations': ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'],
-  '/dashboard': ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE', 'OPERATIONS'],
-};
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "dealflow360_session";
+const DEFAULT_SECRET = "dealflow360-insecure-default-jwt-secret-replace-in-env-key-99881122";
 
-export function middleware(request: NextRequest) {
+async function verifyToken(token: string) {
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || DEFAULT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const cookieHeader = request.headers.get('cookie');
-  const role = getRoleFromCookieString(cookieHeader);
 
-  // 1. Skip static assets, favicon, _next
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/public')
-  ) {
+  // Excluded routes from authentication checks
+  const isPortalRoute = pathname.startsWith("/portal");
+  const isApiPortalRoute = pathname.startsWith("/api/portal");
+  const isLoginRoute = pathname.startsWith("/login");
+  const isAuthApiRoute = pathname.startsWith("/api/auth");
+  const isPublicAsset = pathname.startsWith("/_next") || pathname.includes("/favicon.ico");
+
+  if (isPortalRoute || isApiPortalRoute || isLoginRoute || isAuthApiRoute || isPublicAsset) {
     return NextResponse.next();
   }
 
-  // 2. Allow API routes to be handled by controller layer (with require-role.ts) or auth endpoints
-  if (pathname.startsWith('/api')) {
-    return NextResponse.next();
-  }
+  // 1. Check JWT session cookie
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
 
-  // 3. Login page check
-  if (pathname === '/login') {
-    return NextResponse.next();
-  }
+  // 2. Check fallback demo role cookie
+  const demoRole = request.cookies.get(DEMO_ROLE_COOKIE)?.value;
 
-  // 4. Unauthenticated users trying to access protected routes -> redirect to /login
-  if (!role) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('from', pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // 5. Customer domain routes (/portal)
-  if (pathname.startsWith('/portal')) {
-    // Customers and internal roles (for oversight) can access portal
-    return NextResponse.next();
-  }
-
-  // 6. Customer role attempting to access internal dashboard routes -> redirect to customer portal
-  if (role === 'CUSTOMER') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/portal/quotation';
-    return NextResponse.redirect(url);
-  }
-
-  // 7. Check internal route permissions based on profiles.role
-  for (const [routePrefix, allowedRoles] of Object.entries(ROLE_ROUTE_PERMISSIONS)) {
-    if (pathname === routePrefix || pathname.startsWith(routePrefix + '/')) {
-      if (!allowedRoles.includes(role)) {
-        const url = request.nextUrl.clone();
-        url.pathname = '/dashboard';
-        url.searchParams.set('error', 'unauthorized');
-        url.searchParams.set('role', role);
-        return NextResponse.redirect(url);
-      }
-    }
+  if (!session && !demoRole) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
@@ -80,6 +48,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
