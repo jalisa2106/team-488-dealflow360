@@ -167,6 +167,88 @@ export async function createQuote(input: CreateQuoteInput, actorId: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Update Quote (draft)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function updateQuote(quoteId: string, lines: QuoteLineInput[], actorId: string) {
+  const quote = await prisma.quote.findUniqueOrThrow({
+    where: { id: quoteId },
+    include: { quoteLines: true }
+  });
+
+  if (quote.status !== 'DRAFT' && quote.status !== 'NEGOTIATION') {
+    throw new Error('Can only update quotes in DRAFT or NEGOTIATION status');
+  }
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: lines.map(l => l.productId) }, active: true },
+  });
+  const productMap = new Map(products.map(p => [p.id, p]));
+
+  const lineData = lines.map(line => {
+    const product = productMap.get(line.productId);
+    if (!product) throw new Error(`Product ${line.productId} not found or inactive`);
+
+    const pricing = resolvePricing({
+      basePrice: Number(product.basePrice),
+      costPrice: Number(product.costPrice),
+      quantity: line.quantity,
+      taxPercent: Number(product.taxPercent),
+    });
+
+    const discountAmount = Math.round((pricing.subtotal * line.discountPercent / 100) * 100) / 100;
+    const lineTotal = Math.round((pricing.subtotal - discountAmount) * 100) / 100;
+
+    return {
+      productId: line.productId,
+      quantity: line.quantity,
+      unitPrice: pricing.unitPrice,
+      discountPercent: line.discountPercent,
+      discountAmount,
+      lineTotal,
+      marginAmount: Math.round((lineTotal - pricing.unitPrice * line.quantity * (Number(product.costPrice) / Number(product.basePrice))) * 100) / 100,
+      billingType: line.billingType ?? 'ONE_TIME',
+      subscriptionPlanId: line.subscriptionPlanId ?? null,
+    };
+  });
+
+  const subtotal = Math.round(lineData.reduce((s, l) => s + Number(l.unitPrice) * Number(l.quantity), 0) * 100) / 100;
+  const discountAmount = Math.round(lineData.reduce((s, l) => s + Number(l.discountAmount), 0) * 100) / 100;
+  const total = Math.round(lineData.reduce((s, l) => s + Number(l.lineTotal), 0) * 100) / 100;
+
+  // Transaction: delete old lines, create new ones, update quote totals
+  const updatedQuote = await prisma.$transaction(async (tx) => {
+    await tx.quoteLine.deleteMany({ where: { quoteId } });
+    
+    return await tx.quote.update({
+      where: { id: quoteId },
+      data: {
+        subtotal,
+        discountAmount,
+        total,
+        quoteLines: {
+          create: lineData,
+        },
+      },
+      include: {
+        quoteLines: { include: { product: { include: { category: true } } } },
+        customer: { include: { tier: true } },
+      },
+    });
+  });
+
+  await writeAuditLog({
+    entityType: 'QUOTE',
+    entityId: quoteId,
+    action: 'QUOTE_UPDATED',
+    actorId,
+    after: { status: quote.status, total },
+  });
+
+  return updatedQuote;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Evaluate Quote — runs the full pipeline
 // ─────────────────────────────────────────────────────────────────────────────
 
