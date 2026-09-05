@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { UserRole } from "@/lib/types";
+import { type UserRole } from "@/lib/types";
 import { getRequiredRolesForPath } from "@/lib/auth/rbac";
 
 const SESSION_COOKIE_NAME =
@@ -64,15 +64,16 @@ export async function middleware(request: NextRequest) {
   const userRole = session?.role as UserRole | undefined;
 
   // 3. Handle public routes
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname === route || pathname.startsWith(route + "/")
+  const isPublicRoute = publicRoutes.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
   if (isPublicRoute) {
     // If authenticated user visits /login, redirect to /dashboard (or portal if customer)
     if (isAuthenticated && pathname.startsWith("/login")) {
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = userRole === "CUSTOMER" ? "/portal/quotation" : "/dashboard";
+      redirectUrl.pathname =
+        userRole === "CUSTOMER" ? "/portal/quotation" : "/dashboard";
       return NextResponse.redirect(redirectUrl);
     }
     return NextResponse.next();
@@ -83,7 +84,10 @@ export async function middleware(request: NextRequest) {
     // If an API request is unauthenticated, return 401 Unauthorized JSON instead of HTML redirect
     if (pathname.startsWith("/api")) {
       return NextResponse.json(
-        { success: false, error: { code: "UNAUTHORIZED", message: "Authentication required" } },
+        {
+          success: false,
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+        },
         { status: 401 }
       );
     }
@@ -94,7 +98,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // 5. Customer domain checks
-  if (userRole === "CUSTOMER" && !pathname.startsWith("/portal") && !pathname.startsWith("/api")) {
+  if (
+    userRole === "CUSTOMER" &&
+    !pathname.startsWith("/portal") &&
+    !pathname.startsWith("/api")
+  ) {
     const portalUrl = request.nextUrl.clone();
     portalUrl.pathname = "/portal/quotation";
     return NextResponse.redirect(portalUrl);

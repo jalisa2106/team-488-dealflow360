@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/rbac";
+import { listPendingApprovals } from "@/lib/services/approval.service";
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
-    await requireRole(["ADMIN", "SALES_MANAGER", "FINANCE"]);
+    const session = await requireRole(["ADMIN", "SALES_MANAGER", "FINANCE"]);
+
+    const approvals = await listPendingApprovals(session.role, session.sub);
 
     return NextResponse.json({
       success: true,
       data: {
-        pendingApprovalsCount: 4,
-        approvals: [
-          { id: "app_101", quoteId: "Q-2026-004", requestedBy: "Sarah Rep", amount: 145000, discountPct: 22, status: "PENDING" },
-          { id: "app_102", quoteId: "Q-2026-009", requestedBy: "John Rep", amount: 89000, discountPct: 18, status: "PENDING" },
-        ],
+        pendingApprovalsCount: approvals.length,
+        approvals,
       },
     });
   } catch (error: any) {
@@ -29,7 +29,13 @@ export async function GET(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Internal server error",
+        },
+      },
       { status: 500 }
     );
   }
