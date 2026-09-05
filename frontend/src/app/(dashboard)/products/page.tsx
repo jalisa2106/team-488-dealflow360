@@ -2,29 +2,151 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+const FILTER_OPTS = ['All', 'Active', 'Archived', 'Hardware', 'Service', 'Subscription'];
+const GROUP_OPTS  = ['None', 'Category', 'Type', 'Status'];
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [groupBy, setGroupBy] = useState<'none' | 'category'>('none');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch('/api/products');
-        const data = await res.json();
-        if (data.success && data.data) {
-          setProducts(data.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch products', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchData();
   }, []);
 
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      if (data.success && data.data) {
+        setProducts(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const activeProducts = products.filter(p => p.active).length;
   const archivedProducts = products.filter(p => !p.active).length;
+
+  const toggleSelection = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = (subset: any[]) => {
+    const subsetIds = subset.map(p => p.id);
+    const allSelected = subsetIds.every(id => selectedIds.has(id));
+    const next = new Set(selectedIds);
+    
+    if (allSelected) {
+      subsetIds.forEach(id => next.delete(id));
+    } else {
+      subsetIds.forEach(id => next.add(id));
+    }
+    setSelectedIds(next);
+  };
+
+  const handleBulkAction = async (active: boolean) => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to ${active ? 'activate' : 'archive'} ${selectedIds.size} products?`)) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/products/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), active })
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        await fetchData(); // Refresh
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Bulk action failed');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const groupedProducts = (() => {
+    if (groupBy === 'none') return { 'All Products': products };
+    
+    const groups: Record<string, any[]> = {};
+    products.forEach(p => {
+      const cat = p.category?.name || 'Uncategorized';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(p);
+    });
+    return Object.fromEntries(Object.entries(groups).sort());
+  })();
+
+  const renderTable = (items: any[]) => {
+    const allSelected = items.length > 0 && items.every(p => selectedIds.has(p.id));
+    const someSelected = items.some(p => selectedIds.has(p.id)) && !allSelected;
+
+    return (
+      <div className="table-wrap bg-[var(--surface)] border-[var(--border)]">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width: 40, textAlign: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  checked={allSelected} 
+                  ref={el => { if (el) el.indeterminate = someSelected; }}
+                  onChange={() => toggleSelectAll(items)} 
+                />
+              </th>
+              <th>Product Name</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th className="text-right">Base Price</th>
+              <th>Unit</th>
+              <th className="text-right">Tax %</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && items.length === 0 ? (
+              <tr><td colSpan={8} style={{textAlign: 'center', padding: 20}}>Loading...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={8} style={{textAlign: 'center', padding: 20}}>No products found.</td></tr>
+            ) : (
+              items.map(row => (
+                <tr key={row.id} className="clickable" style={{ backgroundColor: selectedIds.has(row.id) ? 'var(--bg-subtle)' : undefined }}>
+                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelection(row.id)} />
+                  </td>
+                  <td style={{ fontWeight: 700 }} onClick={() => window.location.href = `/products/${row.id}`}>{row.name}</td>
+                  <td style={{ color: 'var(--fg-muted)' }} onClick={() => window.location.href = `/products/${row.id}`}>{row.sku}</td>
+                  <td onClick={() => window.location.href = `/products/${row.id}`}><span className="badge badge-neutral">{row.category?.name || 'Uncategorized'}</span></td>
+                  <td className="text-right" style={{ fontWeight: 600 }} onClick={() => window.location.href = `/products/${row.id}`}>${Number(row.basePrice || 0).toLocaleString()}</td>
+                  <td onClick={() => window.location.href = `/products/${row.id}`}>{row.unit}</td>
+                  <td className="text-right" onClick={() => window.location.href = `/products/${row.id}`}>{Number(row.taxPercent || 0)}%</td>
+                  <td onClick={() => window.location.href = `/products/${row.id}`}>
+                    <span className={`badge ${row.active ? 'badge-success' : 'badge-neutral'}`}>
+                      {row.active ? 'Active' : 'Archived'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -39,7 +161,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* KPI Cards using theme variables */}
+      {/* KPI Cards */}
       <div className="kpi-grid">
         <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
           <div className="card-label">Total Products</div>
@@ -58,46 +180,33 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <h2 className="section-title">Products</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 className="section-title" style={{ margin: 0 }}>Products</h2>
+        <div className="toggle-group" style={{ display: 'inline-flex' }}>
+          <button className={`toggle-btn ${groupBy === 'none' ? 'active' : ''}`} onClick={() => setGroupBy('none')}>List</button>
+          <button className={`toggle-btn ${groupBy === 'category' ? 'active' : ''}`} onClick={() => setGroupBy('category')}>Group by Category</button>
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      {selectedIds.size > 0 && (
+        <div style={{ background: 'var(--primary)', color: 'white', padding: '12px 20px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <span style={{ fontWeight: 600 }}>{selectedIds.size} products selected</span>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn" style={{ background: 'white', color: 'var(--primary)', padding: '6px 12px', fontSize: 13 }} onClick={() => handleBulkAction(true)} disabled={submitting}>Activate Selected</button>
+            <button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: 'white', padding: '6px 12px', fontSize: 13, border: '1px solid rgba(255,255,255,0.3)' }} onClick={() => handleBulkAction(false)} disabled={submitting}>Archive Selected</button>
+          </div>
+        </div>
+      )}
       
-      {/* Data Table using theme variables */}
-      <div className="table-wrap bg-[var(--surface)] border-[var(--border)]">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Product Name</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th className="text-right">Base Price</th>
-              <th>Unit</th>
-              <th className="text-right">Tax %</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} style={{textAlign: 'center', padding: 20}}>Loading...</td></tr>
-            ) : products.length === 0 ? (
-              <tr><td colSpan={7} style={{textAlign: 'center', padding: 20}}>No products found.</td></tr>
-            ) : (
-              products.map(row => (
-                <tr key={row.id} className="clickable" onClick={() => window.location.href = `/products/${row.id}`}>
-                  <td style={{ fontWeight: 700 }}>{row.name}</td>
-                  <td style={{ color: 'var(--fg-muted)' }}>{row.sku}</td>
-                  <td><span className="badge badge-neutral">{row.category?.name || 'Uncategorized'}</span></td>
-                  <td className="text-right" style={{ fontWeight: 600 }}>${Number(row.basePrice || 0).toLocaleString()}</td>
-                  <td>{row.unit}</td>
-                  <td className="text-right">{Number(row.taxPercent || 0)}%</td>
-                  <td>
-                    <span className={`badge ${row.active ? 'badge-success' : 'badge-neutral'}`}>
-                      {row.active ? 'Active' : 'Archived'}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Tables */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {Object.entries(groupedProducts).map(([groupName, items]) => (
+          <div key={groupName}>
+            {groupBy !== 'none' && <h3 style={{ marginBottom: 12, fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>{groupName} <span style={{ fontSize: 13, color: 'var(--fg-muted)', fontWeight: 400 }}>({items.length})</span></h3>}
+            {renderTable(items)}
+          </div>
+        ))}
       </div>
 
       <div className="notice" style={{ marginTop: 12 }}>

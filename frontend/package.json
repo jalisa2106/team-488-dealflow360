@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:reset": "npx tsx prisma/reset.ts",
+    "db:reset-seed": "npx tsx prisma/reset.ts --seed"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

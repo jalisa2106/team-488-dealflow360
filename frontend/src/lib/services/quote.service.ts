@@ -549,16 +549,30 @@ export async function getQuote(quoteId: string) {
 export async function listQuotes(filters: {
   salesRepId?: string;
   customerId?: string;
-  status?: string;
+  /** Single status or array of statuses to filter by (OR logic). */
+  status?: string | string[];
+  /** Free-text search: matches quoteNumber (contains) OR customer.companyName (contains). */
+  search?: string;
   page?: number;
   limit?: number;
 }) {
-  const { salesRepId, customerId, status, page = 1, limit = 20 } = filters;
+  const { salesRepId, customerId, status, search, page = 1, limit = 20 } = filters;
 
-  const where = {
+  // Normalise status to an array (or undefined when not provided)
+  const statusList = status
+    ? Array.isArray(status) ? status : [status]
+    : undefined;
+
+  const where: Record<string, unknown> = {
     ...(salesRepId && { salesRepId }),
     ...(customerId && { customerId }),
-    ...(status && { status }),
+    ...(statusList?.length && { status: { in: statusList } }),
+    ...(search && {
+      OR: [
+        { quoteNumber: { contains: search, mode: 'insensitive' } },
+        { customer: { companyName: { contains: search, mode: 'insensitive' } } },
+      ],
+    }),
   };
 
   const [quotes, total] = await Promise.all([
@@ -578,3 +592,4 @@ export async function listQuotes(filters: {
 
   return { quotes, total, page, limit };
 }
+
