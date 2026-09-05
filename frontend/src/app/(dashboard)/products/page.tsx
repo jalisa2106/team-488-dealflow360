@@ -10,7 +10,7 @@ const PRODUCTS = [
 
 export default function ProductsPage() {
   return (
-    <div>
+    <div className="space-y-6">
       <div className="page-header page-header-row">
         <div>
           <h1 className="page-title">Product Catalog</h1>
@@ -22,26 +22,29 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="kpi-grid" style={{ marginBottom: 24 }}>
-        <div className="kpi-card">
+      {/* KPI Cards using theme variables */}
+      <div className="kpi-grid">
+        <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
           <div className="card-label">Total Products</div>
-          <div className="kpi-value">128</div>
+          <div className="kpi-value text-[var(--fg)]">128</div>
           <div className="kpi-sub">active, 6 archived</div>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
           <div className="card-label">Pricelists</div>
-          <div className="kpi-value">3</div>
+          <div className="kpi-value text-[var(--fg)]">3</div>
           <div className="kpi-sub">tiers, 2 currencies</div>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card card-shadow bg-[var(--surface)] border-[var(--border)] text-[var(--fg)]">
           <div className="card-label">Variants</div>
-          <div className="kpi-value">340</div>
+          <div className="kpi-value text-[var(--fg)]">340</div>
           <div className="kpi-sub">SKUs across all products</div>
         </div>
       </div>
 
       <h2 className="section-title">Products</h2>
-      <div className="table-wrap">
+      
+      {/* Data Table using theme variables */}
+      <div className="table-wrap bg-[var(--surface)] border-[var(--border)]">
         <table className="data-table">
           <thead>
             <tr>
@@ -69,6 +72,7 @@ export default function ProductsPage() {
           </tbody>
         </table>
       </div>
+
       <div className="notice" style={{ marginTop: 12 }}>
         Click a product row to open general info, variants and tier/currency price lists.
       </div>
