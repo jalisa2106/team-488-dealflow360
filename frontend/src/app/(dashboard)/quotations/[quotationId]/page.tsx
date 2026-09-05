@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 
 type LineItem = {
   productId: string;
@@ -19,8 +19,9 @@ type Upsell = {
   basePrice: number;
 };
 
-export default function QuotationDetailPage({ params }: { params: Promise<{ quotationId: string }> }) {
-  const { quotationId } = use(params);
+export default function QuotationDetailPage() {
+  const params = useParams();
+  const quotationId = params.quotationId as string;
   const router = useRouter();
 
   const [quote, setQuote] = useState<any>(null);
@@ -35,6 +36,19 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
   const [evaluation, setEvaluation] = useState<any>(null);
   const [evaluating, setEvaluating] = useState(false);
 
+  const handleEvaluate = useCallback(async (id: string = quotationId) => {
+    setEvaluating(true);
+    try {
+      const res = await fetch(`/api/quotes/${id}/evaluate`, { method: 'POST' });
+      const data = await res.json();
+      setEvaluation(data);
+    } catch (err: any) {
+      console.error(err.message);
+    } finally {
+      setEvaluating(false);
+    }
+  }, [quotationId]);
+
   // AI Copilot state
   const [showCopilot, setShowCopilot] = useState(false);
   const [copilotLoading, setCopilotLoading] = useState(false);
@@ -44,20 +58,41 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
   const [portalLink, setPortalLink] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Reference to track initial load to prevent immediate auto-save
+  const isInitialLoad = useRef(true);
+  const lastSavedLines = useRef<string>('');
+
+  useEffect(() => {
+    if (!quotationId || quotationId === 'undefined') {
+      router.replace('/quotations');
+    }
+  }, [quotationId, router]);
+
   const fetchQuote = useCallback(async () => {
     try {
       const res = await fetch(`/api/quotes/${quotationId}`);
-      if (!res.ok) throw new Error('Failed to fetch quote');
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('Fetch quote failed:', res.status, text);
+        throw new Error(`Failed to fetch quote (ID: ${quotationId}): ${res.status} ${text}`);
+      }
       const data = await res.json();
       setQuote(data);
-      setLines(data.quoteLines.map((l: any) => ({
+      const initialLines = data.quoteLines.map((l: any) => ({
         productId: l.productId,
         productName: l.product.name,
         qty: Number(l.quantity),
         price: Number(l.unitPrice),
         discount: Number(l.discountPercent),
         limit: 30, // Using 30% as a static display limit for now
-      })));
+      }));
+      setLines(initialLines);
+      lastSavedLines.current = JSON.stringify(initialLines);
+      
+      // Auto-trigger evaluation on load if DRAFT
+      if (data.status === 'DRAFT') {
+        handleEvaluate(quotationId);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -76,7 +111,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
   }, [quotationId]);
 
   useEffect(() => {
-    if (quotationId === 'Q-NEW') return; // Skip if it's a dummy navigation
+    if (!quotationId || quotationId === 'undefined' || quotationId === 'Q-NEW') return;
     fetchQuote();
     fetchUpsells();
   }, [quotationId, fetchQuote, fetchUpsells]);
@@ -102,6 +137,54 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
     }]);
   };
 
+  const handleSaveAndEvaluate = useCallback(async (currentLines: LineItem[]) => {
+    if (quote?.status !== 'DRAFT') return;
+    
+    const linesStr = JSON.stringify(currentLines);
+    if (linesStr === lastSavedLines.current) return;
+    
+    setSaving(true);
+    setEvaluating(true);
+    try {
+      // 1. Save
+      const patchRes = await fetch(`/api/quotes/${quotationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lines: currentLines.map(l => ({
+            productId: l.productId,
+            quantity: l.qty,
+            discountPercent: l.discount
+          }))
+        })
+      });
+      if (!patchRes.ok) throw new Error('Save failed');
+      lastSavedLines.current = linesStr;
+
+      // 2. Evaluate
+      await handleEvaluate(quotationId);
+    } catch (err: any) {
+      console.error('Auto-save/evaluate failed:', err);
+    } finally {
+      setSaving(false);
+      setEvaluating(false);
+    }
+  }, [quotationId, quote?.status]);
+
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      if (lines.length > 0) isInitialLoad.current = false;
+      return;
+    }
+    
+    // Debounce 1.5s for live evaluation
+    const timer = setTimeout(() => {
+      handleSaveAndEvaluate(lines);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, [lines, handleSaveAndEvaluate]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -117,25 +200,12 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
         })
       });
       if (!res.ok) throw new Error('Save failed');
-      await fetchQuote(); // Refresh state
+      lastSavedLines.current = JSON.stringify(lines);
       alert('Draft saved successfully');
     } catch (err: any) {
       alert(err.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleEvaluate = async () => {
-    setEvaluating(true);
-    try {
-      const res = await fetch(`/api/quotes/${quotationId}/evaluate`, { method: 'POST' });
-      const data = await res.json();
-      setEvaluation(data);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setEvaluating(false);
     }
   };
 
@@ -384,13 +454,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ quot
         </div>
       ) : quote.status === 'DRAFT' ? (
         <div className="action-row">
-          <button className="btn btn-secondary" onClick={handleEvaluate} disabled={evaluating}>
-            {evaluating ? 'Evaluating…' : 'Run Live Evaluation'}
-          </button>
-          <button className="btn btn-secondary" onClick={handleSave} disabled={saving || submitting}>
-            {saving ? 'Saving…' : 'Save Draft'}
-          </button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving || submitting}>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={saving || submitting || evaluating}>
             {submitting ? 'Submitting...' : 'Submit for Approval'}
           </button>
         </div>

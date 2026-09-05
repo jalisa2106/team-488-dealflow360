@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function FulfillmentPage() {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -111,7 +112,9 @@ export default function FulfillmentPage() {
                   return (
                     <tr key={order.id}>
                       <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                        {order.quote?.quoteNumber || order.id.slice(0, 8)}
+                        <Link href={`/fulfillment/${order.id}`}>
+                          {order.quote?.quoteNumber || order.id.slice(0, 8)}
+                        </Link>
                       </td>
                       <td>{order.quote?.customer?.companyName || 'Unknown'}</td>
                       <td>

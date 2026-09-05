@@ -29,35 +29,40 @@ export async function POST(req: NextRequest) {
       dealHealthReasons: body.dealHealthReasons,
     };
 
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
       const explanation = buildDeterministicExplanation(input);
-      return NextResponse.json({ explanation, usedFallback: true });
+      return NextResponse.json({ explanation, usedFallback: true, note: 'GROQ_API_KEY not set' });
     }
 
     try {
-      const prompt = buildGeminiPrompt(input);
+      const prompt = buildGeminiPrompt(input); // Renamed internally, but prompt structure is same
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        `https://api.groq.com/openai/v1/chat/completions`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`
+          },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.3 },
+            model: 'llama3-8b-8192',
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            temperature: 0.3
           }),
           signal: AbortSignal.timeout(5000),
         }
       );
-      if (!res.ok) throw new Error('Gemini API error');
-      const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      if (!res.ok) throw new Error(`Groq API error: ${res.status}`);
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content ?? '';
       const parsed = JSON.parse(text) as { summary?: string; riskExplanation?: string };
       if (!parsed.summary || !parsed.riskExplanation) throw new Error('Invalid schema');
       return NextResponse.json({ explanation: parsed, usedFallback: false });
-    } catch {
+    } catch (err: any) {
       const explanation = buildDeterministicExplanation(input);
-      return NextResponse.json({ explanation, usedFallback: true });
+      return NextResponse.json({ explanation, usedFallback: true, error: err.message });
     }
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 400 });

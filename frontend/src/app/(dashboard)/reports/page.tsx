@@ -5,6 +5,11 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('This Month');
   const [team, setTeam] = useState('All Teams');
 
+  const handleExport = (type: 'pdf' | 'xls') => {
+    // We can just trigger a download by navigating to the API route in a new tab or iframe.
+    window.open(`/api/reports/export/${type}`, '_blank');
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header page-header-row">
@@ -13,8 +18,8 @@ export default function ReportsPage() {
           <p className="support-text">Sales trends, approval bottlenecks and platform usage</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary">Export PDF</button>
-          <button className="btn btn-secondary">Export XLS</button>
+          <button className="btn btn-secondary" onClick={() => handleExport('pdf')}>Export PDF</button>
+          <button className="btn btn-secondary" onClick={() => handleExport('xls')}>Export XLS</button>
         </div>
       </div>
 

@@ -263,8 +263,9 @@ export default function NewQuotationPage() {
       });
 
       const data = await res.json();
+      console.log('Created quote data:', data);
       if (!res.ok) throw new Error(data.error || 'Failed to create quote');
-      router.push(`/quotations/${data.id}`);
+      router.push('/quotations');
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Something went wrong');
       setSaving(false);

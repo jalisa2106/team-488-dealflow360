@@ -38,7 +38,7 @@ export default function SubscriptionsPage() {
           <h1 className="page-title">Subscriptions (List)</h1>
           <p className="support-text">Every recurring plan across every customer, regardless of which order it came from</p>
         </div>
-        <button className="btn btn-secondary">+ New Plan (Admin)</button>
+        <Link href="/subscriptions/plans/new" className="btn btn-secondary">+ New Plan (Admin)</Link>
       </div>
 
       <div className="chip-row">
