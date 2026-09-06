@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 // ── Toolbar ────────────────────────────────────────────────────────────
@@ -47,6 +47,32 @@ export default function SubscriptionsPage() {
       s.plan?.name?.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
+
+    const grouped: Record<string, any[]> = {};
+    if (groupBy === 'None') {
+      grouped['All'] = visible;
+    } else {
+      visible.forEach(s => {
+        let key = 'Other';
+        if (groupBy === 'Plan') key = s.plan?.name || 'Unknown Plan';
+        if (groupBy === 'Customer') key = s.order?.quote?.customer?.companyName || 'Unknown Customer';
+        if (groupBy === 'Billing Cycle') key = s.plan?.frequency || 'Monthly';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(s);
+      });
+    }
+
+    const renderRows = (items: any[]) => items.map(row => (
+      <tr key={row.id} className="clickable" onClick={() => window.location.href = `/subscriptions/${row.id}`}>
+        <td style={{ fontWeight: 600 }}>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
+        <td>{row.plan?.name || 'Unknown'}</td>
+        <td>{row.plan?.frequency || 'Monthly'}</td>
+        <td style={{ color: row.currentPeriodEnd ? 'inherit' : 'var(--fg-muted)' }}>
+          {row.currentPeriodEnd ? new Date(row.currentPeriodEnd).toLocaleDateString() : '–'}
+        </td>
+        <td><span className={`badge ${STATUS_BADGE[row.status] || 'badge-neutral'}`}>{row.status}</span></td>
+      </tr>
+    ));
 
   return (
     <div>
@@ -115,17 +141,20 @@ export default function SubscriptionsPage() {
             ) : visible.length === 0 ? (
               <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>No subscriptions found.</td></tr>
             ) : (
-              visible.map(row => (
-                <tr key={row.id} className="clickable" onClick={() => window.location.href = `/subscriptions/${row.id}`}>
-                  <td style={{ fontWeight: 600 }}>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
-                  <td>{row.plan?.name || 'Unknown'}</td>
-                  <td>{row.plan?.frequency || 'Monthly'}</td>
-                  <td style={{ color: row.currentPeriodEnd ? 'inherit' : 'var(--fg-muted)' }}>
-                    {row.currentPeriodEnd ? new Date(row.currentPeriodEnd).toLocaleDateString() : '–'}
-                  </td>
-                  <td><span className={`badge ${STATUS_BADGE[row.status] || 'badge-neutral'}`}>{row.status}</span></td>
-                </tr>
-              ))
+              groupBy === 'None' ? (
+                renderRows(visible)
+              ) : (
+                Object.entries(grouped).map(([groupKey, items]) => (
+                  <React.Fragment key={groupKey}>
+                    <tr className="group-header" style={{ backgroundColor: 'var(--surface-sunken)' }}>
+                      <td colSpan={5} style={{ fontWeight: 700, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                        {groupKey} <span style={{ color: 'var(--fg-muted)', fontSize: 12, fontWeight: 500, marginLeft: 8 }}>({items.length})</span>
+                      </td>
+                    </tr>
+                    {renderRows(items)}
+                  </React.Fragment>
+                ))
+              )
             )}
           </tbody>
         </table>

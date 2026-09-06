@@ -32,8 +32,25 @@ export default function ProductDetailPage() {
   const [addingVariant, setAddingVariant] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
+  const [product, setProduct] = useState<any>(null);
+  const [loadingProduct, setLoadingProduct] = useState(true);
+
   useEffect(() => {
     if (!productId) return;
+    
+    // Fetch main product data
+    fetch(`/api/products/${productId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setProduct(d.data);
+          setIsSubscription(d.data.type === 'SUBSCRIPTION');
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProduct(false));
+
+    // Fetch variants
     fetch(`/api/products/${productId}/variants`)
       .then(r => r.json())
       .then(d => { if (d.success) setVariants(d.data); })
@@ -99,27 +116,36 @@ export default function ProductDetailPage() {
       {/* General Info */}
       <div className="card section">
         <h2 className="section-title">General Info</h2>
+        {loadingProduct ? (
+          <div style={{ padding: 20 }}>Loading product details...</div>
+        ) : !product ? (
+          <div style={{ padding: 20 }}>Product not found.</div>
+        ) : (
         <div className="form-row form-row-2" style={{ gap: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="field-group">
               <label className="field-label">Product Name</label>
-              <input className="input" defaultValue="Laptop Pro 14" />
+              <input className="input" defaultValue={product.name} />
+            </div>
+            <div className="field-group">
+              <label className="field-label">SKU</label>
+              <input className="input" defaultValue={product.sku} />
             </div>
             <div className="field-group">
               <label className="field-label">Category</label>
-              <input className="input" defaultValue="Hardware" />
+              <input className="input" defaultValue={product.category?.name || 'Uncategorized'} disabled />
             </div>
             <div className="field-group">
               <label className="field-label">Price</label>
-              <input className="input" type="number" defaultValue={1200} />
+              <input className="input" type="number" defaultValue={product.basePrice} />
             </div>
             <div className="field-group">
               <label className="field-label">Unit</label>
-              <input className="input" defaultValue="Each" />
+              <input className="input" defaultValue={product.unit} />
             </div>
             <div className="field-group">
               <label className="field-label">Description</label>
-              <input className="input" defaultValue="High-performance business laptop" />
+              <input className="input" defaultValue={product.description || ''} />
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -151,6 +177,7 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Product Variants — real CRUD */}

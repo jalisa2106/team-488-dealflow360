@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireRole } from "@/lib/auth/rbac";
 import { generateInviteToken } from "@/lib/auth/invite-token";
+import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 export async function POST(
   req: NextRequest,
@@ -58,9 +59,28 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrlOrigin(req);
     const inviteUrl = `${baseUrl}/onboard/${token}`;
 
+    let emailSent = false;
+    let emailError = null;
+
+    try {
+      const inviterName = session.name || session.email || "DealFlow360 Team";
+      await sendInviteEmail({
+        to: customer.email,
+        companyName: customer.companyName,
+        inviteUrl,
+        invitedByName: inviterName as string,
+      });
+      emailSent = true;
+    } catch (e: any) {
+      emailError = e.message;
+      console.warn("Failed to send invite email:", e);
+    }
+
     return NextResponse.json({
       success: true,
       inviteUrl,
+      emailSent,
+      emailError,
       message: "Invite generated successfully",
     });
   } catch (error: any) {
