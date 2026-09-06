@@ -83,13 +83,13 @@ export function Toolbar({
       )}
       
       {groupOptions.length > 0 && onGroup && (
-        <>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: 'auto' }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Group by:</label>
-          <select className="select" value={groupValue} onChange={(e) => onGroup(e.target.value)}
-            style={{ fontSize: 12, padding: '5px 8px', minWidth: 120 }}>
+          <select className="select select-inline" value={groupValue} onChange={(e) => onGroup(e.target.value)}
+            style={{ fontSize: 12, padding: '5px 8px', width: 'auto', minWidth: 120, maxWidth: 180 }}>
             {groupOptions.map((o) => <option key={o}>{o}</option>)}
           </select>
-        </>
+        </div>
       )}
       
       {viewToggle && (

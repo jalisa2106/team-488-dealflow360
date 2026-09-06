@@ -116,7 +116,14 @@ export async function getDealHealthDashboard(salesRepId?: string) {
     })
   );
 
-  return results;
+  return results.map(r => ({
+    quoteId: r.quote.id,
+    quote: r.quote,
+    healthLevel: r.health.level,
+    healthScore: r.health.score,
+    reasons: r.health.reasons,
+    health: r.health,
+  }));
 }
 
 async function getRepAverageDiscount(salesRepId: string): Promise<number> {

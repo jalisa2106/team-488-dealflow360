@@ -166,6 +166,16 @@ body {
   color: var(--fg);
   font-family: inherit;
 }
+
+/* Inline select when placed in toolbars or next to labels */
+.select-inline,
+.toolbar .select,
+.toolbar-wrap select,
+div:has(> .select) select.select {
+  width: auto;
+  max-width: 240px;
+}
+
 .input:focus, .select:focus {
   outline: none;
   border-color: var(--primary);

@@ -8,12 +8,17 @@ import { writeAuditLog } from './audit.service';
 
 export type ApprovalAction = 'APPROVE' | 'REJECT' | 'REQUEST_REVISION';
 
-export async function listPendingApprovals(reviewerRole: string, reviewerId: string) {
+export async function listPendingApprovals(reviewerRole: string, reviewerId: string, status?: string) {
+  const where: any = {};
+  if (reviewerRole !== 'ADMIN') {
+    where.role = reviewerRole;
+  }
+  if (status) {
+    where.status = status;
+  }
+
   return prisma.approvalRequest.findMany({
-    where: {
-      role: reviewerRole,
-      status: 'PENDING',
-    },
+    where,
     include: {
       quote: {
         include: {
@@ -24,9 +29,10 @@ export async function listPendingApprovals(reviewerRole: string, reviewerId: str
           },
         },
       },
+      reviewer: { select: { id: true, name: true, role: true } },
       actions: { orderBy: { createdAt: 'desc' }, take: 1 },
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
   });
 }
 

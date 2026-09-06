@@ -33,20 +33,20 @@ function daysFromNow(n: number): Date {
   return d;
 }
 
-let quoteSeq = 1000;
-let orderSeq = 5000;
-let invoiceSeq = 9000;
+let quoteSeq = Math.floor(Math.random() * 8000) + 1000;
+let orderSeq = Math.floor(Math.random() * 8000) + 1000;
+let invoiceSeq = Math.floor(Math.random() * 8000) + 1000;
 function nextQuoteNumber() {
   quoteSeq += 1;
-  return `Q-2026-${quoteSeq}`;
+  return `Q-2026-${Date.now().toString().slice(-4)}${quoteSeq}`;
 }
 function nextOrderNumber() {
   orderSeq += 1;
-  return `ORD-2026-${orderSeq}`;
+  return `ORD-2026-${Date.now().toString().slice(-4)}${orderSeq}`;
 }
 function nextInvoiceNumber() {
   invoiceSeq += 1;
-  return `INV-2026-${invoiceSeq}`;
+  return `INV-2026-${Date.now().toString().slice(-4)}${invoiceSeq}`;
 }
 
 // -----------------------------------------------------------------------------
@@ -612,6 +612,70 @@ async function seedQuotesAndDownstream(ctx: Ctx) {
     data: { approvalRequestId: financeStep.id, actorId: ctx.userMap["kavita.rao@dealflow.com"], action: "ESCALATED_TO_FINANCE", reason: "Discount exceeds manager authority.", createdAt: daysAgo(4) },
   });
 
+  // Additional realistic Pending Approvals
+  const pendingDiscountOverage = await createQuoteWithLines(ctx, {
+    customerId: gold,
+    salesRepEmail: "megha.iyer@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 24,
+    riskLevel: "HIGH",
+    createdDaysAgo: 2,
+    lines: [buildLine(ctx, "LAP-PRO-001", 15, 25, "ONE_TIME"), buildLine(ctx, "SVC-SETUP-001", 15, 10, "ONE_TIME")],
+  });
+  allQuotes.push({ scenario: "pending-discount-overage", quote: pendingDiscountOverage });
+  await prisma.approvalRequest.create({
+    data: { quoteId: pendingDiscountOverage.id, step: 1, role: "SALES_MANAGER", status: "PENDING", createdAt: daysAgo(2) },
+  });
+
+  const pendingMarginFloor = await createQuoteWithLines(ctx, {
+    customerId: ctx.customerMap["Zenith Manufacturing"] || gold,
+    salesRepEmail: "arjun.nair@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 36,
+    riskLevel: "CRITICAL",
+    createdDaysAgo: 4,
+    lines: [buildLine(ctx, "SRV-ENT-001", 8, 30, "ONE_TIME")],
+  });
+  allQuotes.push({ scenario: "pending-margin-floor", quote: pendingMarginFloor });
+  await prisma.approvalRequest.create({
+    data: { quoteId: pendingMarginFloor.id, step: 1, role: "FINANCE", status: "PENDING", createdAt: daysAgo(4) },
+  });
+
+  const pendingStrategicBundle = await createQuoteWithLines(ctx, {
+    customerId: bronze,
+    salesRepEmail: "sales@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 18,
+    riskLevel: "MEDIUM",
+    createdDaysAgo: 1,
+    lines: [
+      buildLine(ctx, "NWK-SW-001", 10, 15, "ONE_TIME"),
+      buildLine(ctx, "SVC-TRAIN-001", 2, 20, "ONE_TIME"),
+      buildLine(ctx, "SUB-CLOUD-001", 10, 10, "RECURRING", ctx.subPlanMap["Cloud Platform Monthly"]),
+    ],
+  });
+  allQuotes.push({ scenario: "pending-strategic-bundle", quote: pendingStrategicBundle });
+  await prisma.approvalRequest.create({
+    data: { quoteId: pendingStrategicBundle.id, step: 1, role: "SALES_MANAGER", status: "PENDING", createdAt: daysAgo(1) },
+  });
+
+  const pendingCustomTerms = await createQuoteWithLines(ctx, {
+    customerId: ctx.customerMap["Riverbank Logistics"] || silver,
+    salesRepEmail: "rohit.verma@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 28,
+    riskLevel: "HIGH",
+    createdDaysAgo: 6,
+    lines: [buildLine(ctx, "LAP-AIR-002", 25, 18, "ONE_TIME"), buildLine(ctx, "SUB-SUPPORT-001", 25, 12, "RECURRING", ctx.subPlanMap["Premium Support Monthly"])],
+  });
+  allQuotes.push({ scenario: "pending-custom-terms", quote: pendingCustomTerms });
+  await prisma.approvalRequest.create({
+    data: { quoteId: pendingCustomTerms.id, step: 1, role: "SALES_MANAGER", status: "APPROVED", reviewerId: ctx.userMap["manager@dealflow.com"], reason: "Approved manager tier.", createdAt: daysAgo(6), actedAt: daysAgo(5) },
+  });
+  await prisma.approvalRequest.create({
+    data: { quoteId: pendingCustomTerms.id, step: 2, role: "FINANCE", status: "PENDING", createdAt: daysAgo(5) },
+  });
+
   // --- APPROVED ---
   const approved = await createQuoteWithLines(ctx, {
     customerId: bronze,
@@ -661,6 +725,46 @@ async function seedQuotesAndDownstream(ctx: Ctx) {
   allQuotes.push({ scenario: "revision-requested", quote: revisionRequested });
   await prisma.approvalRequest.create({
     data: { quoteId: revisionRequested.id, step: 1, role: "SALES_MANAGER", status: "REVISION_REQUESTED", reviewerId: ctx.userMap["manager@dealflow.com"], reason: "Please add a support add-on before resubmitting.", createdAt: daysAgo(6), actedAt: daysAgo(5) },
+  });
+
+  // --- CRITICAL DEALS & DISCOUNT ANOMALIES ---
+  const criticalDiscountAnomaly = await createQuoteWithLines(ctx, {
+    customerId: ctx.customerMap["Zenith Manufacturing"] || gold,
+    salesRepEmail: "sales@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 46,
+    riskLevel: "CRITICAL",
+    createdDaysAgo: 8,
+    lines: [buildLine(ctx, "LAP-PRO-001", 20, 32, "ONE_TIME"), buildLine(ctx, "SRV-ENT-001", 5, 28, "ONE_TIME")],
+  });
+  allQuotes.push({ scenario: "critical-discount-anomaly", quote: criticalDiscountAnomaly });
+  await prisma.approvalRequest.create({
+    data: { quoteId: criticalDiscountAnomaly.id, step: 1, role: "FINANCE", status: "PENDING", createdAt: daysAgo(8) },
+  });
+
+  const criticalStalledDeal = await createQuoteWithLines(ctx, {
+    customerId: silver,
+    salesRepEmail: "arjun.nair@dealflow.com",
+    status: "UNDER_NEGOTIATION",
+    riskScore: 42,
+    riskLevel: "CRITICAL",
+    createdDaysAgo: 16,
+    lines: [buildLine(ctx, "SRV-ENT-001", 10, 26, "ONE_TIME"), buildLine(ctx, "SVC-IMPL-001", 3, 20, "ONE_TIME")],
+  });
+  allQuotes.push({ scenario: "critical-stalled-negotiation", quote: criticalStalledDeal });
+
+  const discountAnomalyQuote = await createQuoteWithLines(ctx, {
+    customerId: noTier,
+    salesRepEmail: "megha.iyer@dealflow.com",
+    status: "PENDING_APPROVAL",
+    riskScore: 32,
+    riskLevel: "HIGH",
+    createdDaysAgo: 5,
+    lines: [buildLine(ctx, "NWK-SW-001", 25, 28, "ONE_TIME")],
+  });
+  allQuotes.push({ scenario: "high-discount-anomaly", quote: discountAnomalyQuote });
+  await prisma.approvalRequest.create({
+    data: { quoteId: discountAnomalyQuote.id, step: 1, role: "SALES_MANAGER", status: "PENDING", createdAt: daysAgo(5) },
   });
 
   // --- UNDER_NEGOTIATION (with negotiation thread & per-line messages) ---
@@ -889,12 +993,37 @@ async function seedQuotesAndDownstream(ctx: Ctx) {
     data: { orderId: pendingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: pendingOrderQuote.total, status: "DRAFT", createdAt: daysAgo(1) },
   });
 
+  // Additional unpaid draft invoice
+  const draftInvoice2 = await prisma.invoice.create({
+    data: { orderId: confirmedOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 48500, status: "DRAFT", dueDate: daysFromNow(30), createdAt: daysAgo(2) },
+  });
+
   const issuedInvoice = await prisma.invoice.create({
     data: { orderId: confirmedOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: confirmed.total, status: "ISSUED", dueDate: daysFromNow(20), createdAt: daysAgo(10) },
   });
   await prisma.payment.create({
     data: { invoiceId: issuedInvoice.id, amount: round2(Number(confirmed.total) * 0.5), method: "BANK_TRANSFER", recordedAt: daysAgo(5) },
   }); // partial payment against an issued invoice
+
+  // Multiple new unpaid / issued invoices
+  const unpaidIssued1 = await prisma.invoice.create({
+    data: { orderId: fulfillingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 92400, status: "ISSUED", dueDate: daysFromNow(15), createdAt: daysAgo(5) },
+  });
+  const unpaidIssued2 = await prisma.invoice.create({
+    data: { orderId: confirmedOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 142000, status: "ISSUED", dueDate: daysAgo(4), createdAt: daysAgo(34) }, // overdue!
+  });
+  const unpaidIssued3 = await prisma.invoice.create({
+    data: { orderId: fulfillingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "RECURRING", amount: 35000, status: "ISSUED", dueDate: daysFromNow(7), createdAt: daysAgo(3) },
+  });
+  const unpaidIssued4 = await prisma.invoice.create({
+    data: { orderId: pendingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 67800, status: "ISSUED", dueDate: daysFromNow(25), createdAt: daysAgo(4) },
+  });
+  const unpaidIssued5 = await prisma.invoice.create({
+    data: { orderId: fulfillingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 18500, status: "ISSUED", dueDate: daysAgo(10), createdAt: daysAgo(40) }, // overdue!
+  });
+  const unpaidDraft3 = await prisma.invoice.create({
+    data: { orderId: pendingOrder.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: 23400, status: "DRAFT", dueDate: daysFromNow(45), createdAt: daysAgo(0) },
+  });
 
   const paidInvoice1 = await prisma.invoice.create({
     data: { orderId: completedOrder1.id, invoiceNumber: nextInvoiceNumber(), type: "ONE_TIME", amount: completed1.total, status: "PAID", dueDate: daysAgo(20), createdAt: daysAgo(43) },
@@ -929,14 +1058,22 @@ async function seedQuotesAndDownstream(ctx: Ctx) {
   console.log("Seeding deal health events...");
   await prisma.dealHealthEvent.createMany({
     data: [
-      { quoteId: pendingMgr.id, score: 12, level: "WATCH", reasons: JSON.stringify(["Stalled in approval for 3 days"]), createdAt: daysAgo(1) },
-      { quoteId: pendingBoth.id, score: 22, level: "AT_RISK", reasons: JSON.stringify(["Stalled 5 days", "Escalated to finance"]), createdAt: daysAgo(1) },
-      { quoteId: rejected.id, score: 38, level: "CRITICAL", reasons: JSON.stringify(["Rejected by finance", "Margin below floor", "No customer response in 12 days"]), createdAt: daysAgo(2) },
-      { quoteId: negotiating.id, score: 18, level: "WATCH", reasons: JSON.stringify(["3 negotiation counters", "Discount above tier default"]), createdAt: daysAgo(1) },
+      { quoteId: pendingMgr.id, score: 14, level: "WATCH", reasons: JSON.stringify([{ signal: "APPROVAL_DELAY", severity: "MEDIUM", message: "Stalled in manager approval for 3 days", points: 10 }]), createdAt: daysAgo(1) },
+      { quoteId: pendingBoth.id, score: 26, level: "AT_RISK", reasons: JSON.stringify([{ signal: "APPROVAL_DELAY", severity: "HIGH", message: "Stalled 5 days awaiting finance approval", points: 15 }, { signal: "DISCOUNT_ANOMALY", severity: "MEDIUM", message: "Discount 22% exceeds standard tier policy", points: 11 }]), createdAt: daysAgo(1) },
+      { quoteId: pendingDiscountOverage.id, score: 28, level: "AT_RISK", reasons: JSON.stringify([{ signal: "DISCOUNT_ANOMALY", severity: "HIGH", message: "Requested discount is 12% above sales rep historical average", points: 15 }, { signal: "APPROVAL_DELAY", severity: "MEDIUM", message: "Pending sales manager sign-off", points: 13 }]), createdAt: daysAgo(1) },
+      { quoteId: pendingMarginFloor.id, score: 38, level: "CRITICAL", reasons: JSON.stringify([{ signal: "MARGIN", severity: "CRITICAL", message: "Deal margin 7.4% is below 15% floor", points: 20 }, { signal: "APPROVAL_DELAY", severity: "HIGH", message: "Escalated to finance for 4 days without action", points: 18 }]), createdAt: daysAgo(1) },
+      { quoteId: pendingCustomTerms.id, score: 24, level: "AT_RISK", reasons: JSON.stringify([{ signal: "APPROVAL_DELAY", severity: "HIGH", message: "Awaiting Finance VP review for Net-90 terms", points: 14 }, { signal: "INVENTORY_DELIVERY", severity: "MEDIUM", message: "High volume (25 units) requires multi-warehouse split", points: 10 }]), createdAt: daysAgo(1) },
+      { quoteId: revisionRequested.id, score: 22, level: "AT_RISK", reasons: JSON.stringify([{ signal: "STALL", severity: "HIGH", message: "Quote returned for revision 5 days ago; no customer response", points: 15 }, { signal: "NEGOTIATION_CHURN", severity: "MEDIUM", message: "Support add-on missing from requested revision", points: 7 }]), createdAt: daysAgo(1) },
+      { quoteId: rejected.id, score: 42, level: "CRITICAL", reasons: JSON.stringify([{ signal: "STALL", severity: "CRITICAL", message: "Rejected by finance; margin below policy floor", points: 25 }, { signal: "NEGOTIATION_CHURN", severity: "HIGH", message: "No customer response in 12 days", points: 17 }]), createdAt: daysAgo(2) },
+      { quoteId: negotiating.id, score: 21, level: "AT_RISK", reasons: JSON.stringify([{ signal: "NEGOTIATION_CHURN", severity: "HIGH", message: "3 negotiation counter-offers back and forth", points: 12 }, { signal: "DISCOUNT_ANOMALY", severity: "MEDIUM", message: "Customer counter-offer exceeds tier baseline by 8%", points: 9 }]), createdAt: daysAgo(1) },
       { quoteId: negotiating2.id, score: 9, level: "HEALTHY", reasons: JSON.stringify([]), createdAt: daysAgo(0) },
-      { quoteId: fulfilling.id, score: 14, level: "WATCH", reasons: JSON.stringify(["Partial fulfillment delay at East Depot"]), createdAt: daysAgo(1) },
+      { quoteId: fulfilling.id, score: 14, level: "WATCH", reasons: JSON.stringify([{ signal: "INVENTORY_DELIVERY", severity: "MEDIUM", message: "Partial fulfillment shipment delayed at East Depot", points: 14 }]), createdAt: daysAgo(1) },
       { quoteId: approved.id, score: 3, level: "HEALTHY", reasons: JSON.stringify([]), createdAt: daysAgo(9) },
-      // history: two events for the same quote showing improvement over time
+      { quoteId: criticalDiscountAnomaly.id, score: 48, level: "CRITICAL", reasons: JSON.stringify([{ signal: "DISCOUNT_ANOMALY", severity: "CRITICAL", message: "Requested discount (32%) is 21% higher than rep average", points: 25 }, { signal: "MARGIN", severity: "HIGH", message: "Gross margin 8.1% below 15% threshold", points: 15 }, { signal: "APPROVAL_DELAY", severity: "HIGH", message: "Awaiting Finance VP sign-off for 8 days", points: 8 }]), createdAt: daysAgo(1) },
+      { quoteId: criticalStalledDeal.id, score: 45, level: "CRITICAL", reasons: JSON.stringify([{ signal: "STALL", severity: "CRITICAL", message: "Deal idle for 16 days without negotiation progress", points: 25 }, { signal: "NEGOTIATION_CHURN", severity: "HIGH", message: "4 counter-proposals exchanged with price deadlock", points: 12 }, { signal: "INVENTORY_DELIVERY", severity: "MEDIUM", message: "Requested server configuration on backorder", points: 8 }]), createdAt: daysAgo(1) },
+      { quoteId: discountAnomalyQuote.id, score: 32, level: "AT_RISK", reasons: JSON.stringify([{ signal: "DISCOUNT_ANOMALY", severity: "HIGH", message: "28% discount given on non-tiered account (standard cap 5%)", points: 20 }, { signal: "APPROVAL_DELAY", severity: "MEDIUM", message: "Stalled in sales manager review queue for 5 days", points: 12 }]), createdAt: daysAgo(1) },
+      { quoteId: pendingStrategicBundle.id, score: 11, level: "WATCH", reasons: JSON.stringify([{ signal: "APPROVAL_DELAY", severity: "LOW", message: "New bundle submission pending manager check", points: 11 }]), createdAt: daysAgo(0) },
+      // history: event showing previous state
       { quoteId: pendingMgr.id, score: 6, level: "HEALTHY", reasons: JSON.stringify([]), createdAt: daysAgo(3) },
     ],
   });
@@ -945,6 +1082,9 @@ async function seedQuotesAndDownstream(ctx: Ctx) {
   console.log("Seeding alerts...");
   await prisma.alert.createMany({
     data: [
+      { quoteId: criticalDiscountAnomaly.id, type: "DISCOUNT_ANOMALY", severity: "CRITICAL", message: "High-value quote Q-2026 contains 32% discount, triggering an anomaly flag.", acknowledged: false, createdAt: daysAgo(1) },
+      { quoteId: criticalStalledDeal.id, type: "DEAL_STALLED", severity: "HIGH", message: "Deal with Beta Industries has been idle for over 14 days.", acknowledged: false, createdAt: daysAgo(2) },
+      { quoteId: discountAnomalyQuote.id, type: "DISCOUNT_ANOMALY", severity: "HIGH", message: "Discount exceeds non-tiered customer policy limits by 23 points.", acknowledged: false, createdAt: daysAgo(1) },
       { quoteId: rejected.id, type: "MARGIN_BELOW_FLOOR", severity: "HIGH", message: "Quote margin fell to 6.2%, below the 8% policy floor.", acknowledged: true, createdAt: daysAgo(12) },
       { quoteId: pendingBoth.id, type: "APPROVAL_STALLED", severity: "MEDIUM", message: "Quote has been pending finance approval for 4 days.", acknowledged: false, createdAt: daysAgo(1) },
       { quoteId: negotiating.id, type: "DISCOUNT_ANOMALY", severity: "MEDIUM", message: "Customer counter-offer exceeds tier default discount by 8pts.", acknowledged: false, createdAt: daysAgo(2) },
