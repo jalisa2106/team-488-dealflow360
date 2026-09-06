@@ -230,6 +230,24 @@ export default function QuotationDetailPage() {
     }
   };
 
+  const handleConfirm = async () => {
+    if (!confirm('Are you sure you want to confirm this quotation and create an order?')) return;
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/quotes/${quotationId}/confirm`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Confirmation failed');
+      
+      setQuote({ ...quote, status: 'CONFIRMED' });
+      alert('Quotation confirmed and Order created!');
+      setTimeout(() => router.push('/fulfillment'), 1200);
+    } catch (err: any) {
+      alert(err.message);
+      setSubmitting(false);
+    }
+  };
+
   if (!quote) return <div style={{ padding: 40 }}>Loading Quote...</div>;
 
   const total = lines.reduce((sum, l) => sum + l.qty * l.price * (1 - l.discount / 100), 0);
@@ -457,6 +475,16 @@ export default function QuotationDetailPage() {
           <button className="btn btn-primary" onClick={handleSubmit} disabled={saving || submitting || evaluating}>
             {submitting ? 'Submitting...' : 'Submit for Approval'}
           </button>
+        </div>
+      ) : quote.status === 'APPROVED' ? (
+        <div className="action-row">
+          <button className="btn btn-success" onClick={handleConfirm} disabled={submitting}>
+            {submitting ? 'Confirming...' : 'Confirm Quotation (Create Order)'}
+          </button>
+        </div>
+      ) : quote.status === 'CONFIRMED' ? (
+        <div style={{ padding: '16px', background: 'var(--success-bg)', border: '2px solid var(--success-border)', borderRadius: 6, fontWeight: 700, color: 'var(--success-fg)' }}>
+          ✓ This quotation is confirmed and the order is being fulfilled.
         </div>
       ) : null}
     </div>

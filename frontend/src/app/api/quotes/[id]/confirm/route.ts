@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthSession } from '@/lib/auth/get-auth-session';
 import { prisma } from '@/lib/db/prisma';
 import { writeAuditLog } from '@/lib/services/audit.service';
 import { allocateOrder } from '@/lib/services/fulfillment.service';
 import { createOrderBilling } from '@/lib/services/billing.service';
 
-// POST /api/portal/quotes/[token]/confirm
+// POST /api/quotes/[id]/confirm
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getAuthSession();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE'].includes(session.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
-    const token = (await params).token;
+    const quoteId = (await params).id;
 
     const quote = await prisma.quote.findUnique({
-      where: { portalToken: token },
+      where: { id: quoteId },
       include: {
         quoteLines: { include: { product: true } }
       }
     });
 
     if (!quote) {
-      return NextResponse.json({ error: 'Quote not found or invalid token' }, { status: 404 });
+      return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
     }
 
-    if (quote.status !== 'APPROVED' && quote.status !== 'DRAFT') {
+    if (quote.status !== 'APPROVED') {
       return NextResponse.json({ error: 'Only APPROVED quotes can be confirmed.' }, { status: 400 });
     }
 
@@ -45,8 +52,8 @@ export async function POST(
     await writeAuditLog({
       entityType: 'QUOTE',
       entityId: quote.id,
-      action: 'QUOTE_CONFIRMED_PORTAL',
-      actorId: quote.customerId, // Using customerId as actor
+      action: 'QUOTE_CONFIRMED_INTERNAL',
+      actorId: session.userId,
       after: { status: 'CONFIRMED', orderId: order.id },
     });
 
@@ -57,7 +64,7 @@ export async function POST(
           order.id,
           line.productId,
           Number(line.quantity),
-          quote.customerId // Using customerId as actor
+          session.userId
         );
       } catch (err) {
         console.error(`Failed to allocate line ${line.id}:`, err);
@@ -66,7 +73,7 @@ export async function POST(
 
     // Auto-trigger billing (invoices and subscriptions)
     try {
-      await createOrderBilling(order.id, quote.customerId);
+      await createOrderBilling(order.id, session.userId);
     } catch (err) {
       console.error(`Failed to create billing for order ${order.id}:`, err);
     }

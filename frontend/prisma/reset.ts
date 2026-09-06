@@ -43,20 +43,20 @@ async function resetTransactionalData() {
   await prisma.negotiationMessage.deleteMany();
   await prisma.negotiation.deleteMany();
 
-  // Quotes (lines first, then quotes)
-  await prisma.quoteLine.deleteMany();
-  await prisma.quote.deleteMany();
-
-  // Fulfilment
-  await prisma.fulfillmentAllocation.deleteMany();
-  await prisma.order.deleteMany();
-
   // Billing
   await prisma.billingSchedule.deleteMany();
   await prisma.subscription.deleteMany();
   await prisma.creditNote.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.invoice.deleteMany();
+
+  // Fulfilment
+  await prisma.fulfillmentAllocation.deleteMany();
+  await prisma.order.deleteMany();
+
+  // Quotes (lines first, then quotes)
+  await prisma.quoteLine.deleteMany();
+  await prisma.quote.deleteMany();
 
   console.log('✅  Transactional tables cleared.');
 }

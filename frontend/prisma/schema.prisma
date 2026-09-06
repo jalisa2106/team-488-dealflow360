@@ -329,7 +329,7 @@ model Order {
   id          String            @id @default(uuid())
   quoteId     String            @map("quote_id")
   orderNumber String            @unique @map("order_number")
-  status      String            @default("PENDING") // PENDING, PARTIAL, FULFILLED, BACKORDERED
+  status      String            @default("PENDING") // PENDING, CONFIRMED, FULFILLING, PARTIALLY_FULFILLED, FULFILLED, CANCELLED
   createdAt   DateTime          @default(now()) @map("created_at") @db.DateTime2
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.DateTime2
 
