@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
       doc.end();
     });
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer as any, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': 'attachment; filename="DealFlow360_Report.pdf"'

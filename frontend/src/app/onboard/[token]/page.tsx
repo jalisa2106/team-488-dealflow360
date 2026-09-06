@@ -56,8 +56,9 @@ export default function OnboardPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Automatically login the user? The API doesn't do it right now, so redirect to login.
-        router.push('/login');
+        // Auto-login succeeds, redirect straight to portal
+        router.push('/portal/quotation');
+        router.refresh();
       } else {
         setError(data.error?.message || data.error || 'Onboarding failed.');
       }

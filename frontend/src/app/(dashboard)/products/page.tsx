@@ -9,7 +9,7 @@ import { useToast } from '@/components/Toast';
 export default function ProductsPage() {
   const router = useRouter();
   const toast = useToast();
-  const [products, setProducts] = useState<unknown[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<'none' | 'category'>('none');

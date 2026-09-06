@@ -6,6 +6,7 @@ import { getSession as getRawSession } from '@/lib/auth/session';
 
 export interface SessionUser {
   userId: string;
+  sub: string;
   email: string;
   role: string;
   name?: string;
@@ -16,6 +17,7 @@ export async function getAuthSession(): Promise<SessionUser | null> {
   if (!session) return null;
   return {
     userId: session.sub,
+    sub: session.sub,
     email: session.email,
     role: session.role,
     name: session.name,

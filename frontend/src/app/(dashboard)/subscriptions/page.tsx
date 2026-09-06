@@ -10,8 +10,10 @@ const GROUP_OPTS  = ['None', 'Plan', 'Customer', 'Billing Cycle'];
 const STATUS_BADGE: Record<string, string> = {
   ACTIVE: 'badge-success', PAUSED: 'badge-warning', CANCELLED: 'badge-danger', INACTIVE: 'badge-neutral',
 };
+import { useRouter } from 'next/navigation';
 
 export default function SubscriptionsPage() {
+  const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');

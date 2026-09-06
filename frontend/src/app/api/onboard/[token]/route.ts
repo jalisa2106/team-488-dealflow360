@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashToken } from "@/lib/auth/invite-token";
 import { hashPassword } from "@/lib/auth/hash";
+import { setSessionCookie, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/services/audit.service";
 import { z } from "zod";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const hashed = hashToken(params.token);
+    const { token } = await params;
+    const hashed = hashToken(token);
 
     const invite = await prisma.customerInvite.findUnique({
       where: { token: hashed },
@@ -57,10 +59,11 @@ const OnboardSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const hashed = hashToken(params.token);
+    const { token } = await params;
+    const hashed = hashToken(token);
 
     const invite = await prisma.customerInvite.findUnique({
       where: { token: hashed },
@@ -133,7 +136,25 @@ export async function POST(
       after: { email: newUser.email, name: newUser.name },
     });
 
-    return NextResponse.json({ success: true, message: "Onboarding complete" });
+    // Auto-login the new user
+    const sessionToken = await setSessionCookie({
+      sub: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+    });
+
+    const response = NextResponse.json({ success: true, message: "Onboarding complete" });
+    
+    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    
+    return response;
   } catch (error) {
     console.error("POST onboard token error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
