@@ -38,6 +38,17 @@ export async function submitNegotiation(
     throw new Error('Invalid portal token or quote ID');
   }
 
+  // Guard: renegotiation is blocked once a quote is confirmed/fulfilled/completed
+  // An order (and possibly invoices) already exists at this point — allowing
+  // renegotiation would silently desync the Order/Invoice created for this quote.
+  const POST_CONFIRMATION_STATUSES = ['CONFIRMED', 'FULFILLING', 'COMPLETED', 'CANCELLED'];
+  if (POST_CONFIRMATION_STATUSES.includes(quote.status)) {
+    throw new Error(
+      `Renegotiation is not permitted — this quote has status "${quote.status}". ` +
+      `An order has already been created. Please contact your sales representative to discuss modifications.`
+    );
+  }
+
   if (!isNegotiable(quote.status)) {
     throw new Error(`Quote status "${quote.status}" does not permit negotiation`);
   }

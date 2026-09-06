@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UserRole, User } from '@/lib/types';
 
 interface NavItem {
@@ -13,6 +13,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/quotations', label: 'Quotations' },
+  { href: '/quotations?view=kanban', label: 'Pipeline', roles: ['ADMIN', 'SALES_MANAGER', 'SALES_REP', 'FINANCE'] },
   { href: '/approvals', label: 'Approvals', roles: ['ADMIN', 'SALES_MANAGER', 'FINANCE'] },
   { href: '/fulfillment', label: 'Fulfillment', roles: ['ADMIN', 'OPERATIONS', 'SALES_MANAGER'] },
   { href: '/subscriptions', label: 'Subscriptions', roles: ['ADMIN', 'FINANCE', 'SALES_REP', 'SALES_MANAGER'] },
@@ -21,11 +22,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/reports', label: 'Reports' },
   { href: '/products', label: 'Products' },
   { href: '/customers', label: 'Customers' },
-  { href: '/admin/discount-config', label: 'Admin Rules', roles: ['ADMIN'] },
+  { href: '/admin', label: 'Admin', roles: ['ADMIN'] },
 ];
 
 export default function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -44,6 +46,15 @@ export default function TopNav() {
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/login';
+  };
+
+  const handleReload = () => {
+    router.refresh();
+  };
+
+  const handleCloseWorkspace = () => {
+    // Clear any draft state by navigating to dashboard
+    router.push('/dashboard');
   };
 
   const currentRole = currentUser?.role || 'SALES_REP';
@@ -69,7 +80,9 @@ export default function TopNav() {
 
       <nav className="topbar-tabs" style={{ overflowX: 'auto' }}>
         {visibleNavItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          const isActive = item.href === '/quotations?view=kanban'
+            ? pathname === '/quotations'
+            : pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link
               key={item.href}
@@ -83,7 +96,7 @@ export default function TopNav() {
       </nav>
 
       {/* User Session Info & Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
         {currentUser && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', fontSize: '12px' }}>
             <span style={{ fontWeight: 600 }}>{currentUser.name}</span>
@@ -92,6 +105,36 @@ export default function TopNav() {
             </span>
           </div>
         )}
+
+        {/* Utility actions */}
+        <button
+          onClick={handleReload}
+          className="btn btn-secondary"
+          title="Reload Data"
+          style={{ fontSize: '11px', padding: '4px 8px', height: '28px' }}
+        >
+          ↺ Reload
+        </button>
+
+        {currentUser?.role === 'ADMIN' && (
+          <Link
+            href="/admin"
+            className="btn btn-secondary"
+            style={{ fontSize: '11px', padding: '4px 8px', height: '28px' }}
+            title="Go to Admin Back-end"
+          >
+            ⚙ Admin
+          </Link>
+        )}
+
+        <button
+          onClick={handleCloseWorkspace}
+          className="btn btn-secondary"
+          title="Close current workspace and return to Dashboard"
+          style={{ fontSize: '11px', padding: '4px 8px', height: '28px' }}
+        >
+          ✕ Close
+        </button>
 
         <button
           onClick={handleLogout}

@@ -1,11 +1,84 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
-export default function ProductDetailPage({ params }: { params: Promise<{ productId: string }> }) {
+interface Variant {
+  id: string;
+  attributeName: string;
+  value: string;
+  extraPrice: number;
+  sku: string | null;
+}
+
+const PRICELISTS = [
+  { tier: 'Bronze', currency: 'USD', rule: 'Price, no adjustment' },
+  { tier: 'Gold', currency: 'USD / EUR', rule: 'Price minus 10% base' },
+];
+
+export default function ProductDetailPage() {
+  const params = useParams();
+  const productId = params.productId as string;
+  const toast = useToast();
+
   const [isSubscription, setIsSubscription] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(true);
+  const [newVariant, setNewVariant] = useState({ attributeName: '', value: '', extraPrice: 0, sku: '' });
+  const [addingVariant, setAddingVariant] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    if (!productId) return;
+    fetch(`/api/products/${productId}/variants`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setVariants(d.data); })
+      .catch(() => {})
+      .finally(() => setLoadingVariants(false));
+  }, [productId]);
+
+  const handleAddVariant = async () => {
+    if (!newVariant.attributeName || !newVariant.value) {
+      toast.error('Attribute name and value are required');
+      return;
+    }
+    setAddingVariant(true);
+    try {
+      const res = await fetch(`/api/products/${productId}/variants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newVariant, sku: newVariant.sku || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add variant');
+      toast.success('Variant added');
+      setVariants(prev => [...prev, data.data]);
+      setNewVariant({ attributeName: '', value: '', extraPrice: 0, sku: '' });
+      setShowAddForm(false);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setAddingVariant(false);
+    }
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/products/${productId}/variants/${variantId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete variant');
+      toast.success('Variant removed');
+      setVariants(prev => prev.filter(v => v.id !== variantId));
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -15,19 +88,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ produc
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const VARIANTS = [
-    { attr: 'Color', values: 'Blue, Black', extra: '0' },
-    { attr: 'RAM', values: '4GB, 8GB', extra: '+$30' },
-    { attr: 'Manufacturer', values: 'Dell, HP', extra: '+$10 / +$30' },
-  ];
-
-  const PRICELISTS = [
-    { tier: 'Bronze', currency: 'USD', rule: 'Price, no adjustment' },
-    { tier: 'Gold', currency: 'USD / EUR', rule: 'Price minus 10% base' },
-  ];
-
   return (
-    <div>
+    <div className="space-y-6">
       <Link href="/products" className="back-link">← Back to Product Catalog</Link>
 
       <div className="page-header">
@@ -91,30 +153,84 @@ export default function ProductDetailPage({ params }: { params: Promise<{ produc
         </div>
       </div>
 
-      {/* Product Variants */}
-      <div className="section">
-        <h2 className="section-title">Product Variants</h2>
+      {/* Product Variants — real CRUD */}
+      <div className="card section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 className="section-title" style={{ marginBottom: 0 }}>Product Variants</h2>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} onClick={() => setShowAddForm(!showAddForm)}>
+            {showAddForm ? 'Cancel' : '+ Add Variant'}
+          </button>
+        </div>
+
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Attribute</th>
-                <th>Values</th>
+                <th>Value</th>
+                <th>SKU</th>
                 <th className="text-right">Extra Price</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {VARIANTS.map((v, i) => (
-                <tr key={i}>
-                  <td style={{ fontWeight: 600 }}>{v.attr}</td>
-                  <td>{v.values}</td>
-                  <td className="text-right" style={{ fontWeight: 600, color: v.extra === '0' ? 'var(--fg-muted)' : 'var(--success-fg)' }}>{v.extra}</td>
-                </tr>
-              ))}
+              {loadingVariants ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center' }}>Loading variants…</td></tr>
+              ) : variants.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--fg-muted)' }}>No variants defined yet</td></tr>
+              ) : (
+                variants.map(v => (
+                  <tr key={v.id}>
+                    <td style={{ fontWeight: 600 }}>{v.attributeName}</td>
+                    <td>{v.value}</td>
+                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{v.sku || '-'}</td>
+                    <td className="text-right" style={{ fontWeight: 600, color: Number(v.extraPrice) > 0 ? 'var(--success-fg)' : 'var(--fg-muted)' }}>
+                      {Number(v.extraPrice) > 0 ? `+$${Number(v.extraPrice).toFixed(2)}` : '—'}
+                    </td>
+                    <td className="text-right">
+                      <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }}
+                        onClick={() => handleDeleteVariant(v.id)} disabled={saving}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-        <button className="btn btn-secondary" style={{ marginTop: 10, fontSize: 12 }}>+ Add Variant</button>
+
+        {showAddForm && (
+          <div style={{ marginTop: 14, padding: 14, border: '1px solid var(--border)', borderRadius: 6 }}>
+            <div className="form-row form-row-4" style={{ gap: 10 }}>
+              <div className="field-group">
+                <label className="field-label">Attribute Name</label>
+                <input className="input" placeholder="e.g. Color, RAM" value={newVariant.attributeName}
+                  onChange={e => setNewVariant(p => ({ ...p, attributeName: e.target.value }))} />
+              </div>
+              <div className="field-group">
+                <label className="field-label">Value</label>
+                <input className="input" placeholder="e.g. Blue, 8GB" value={newVariant.value}
+                  onChange={e => setNewVariant(p => ({ ...p, value: e.target.value }))} />
+              </div>
+              <div className="field-group">
+                <label className="field-label">Extra Price ($)</label>
+                <input className="input" type="number" min={0} value={newVariant.extraPrice}
+                  onChange={e => setNewVariant(p => ({ ...p, extraPrice: parseFloat(e.target.value) }))} />
+              </div>
+              <div className="field-group">
+                <label className="field-label">Variant SKU (optional)</label>
+                <input className="input" placeholder="PROD-BLU-001" value={newVariant.sku}
+                  onChange={e => setNewVariant(p => ({ ...p, sku: e.target.value }))} />
+              </div>
+            </div>
+            <div className="action-row" style={{ marginTop: 10 }}>
+              <button className="btn btn-primary" onClick={handleAddVariant} disabled={addingVariant}>
+                {addingVariant ? 'Adding…' : 'Add Variant'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pricelists */}

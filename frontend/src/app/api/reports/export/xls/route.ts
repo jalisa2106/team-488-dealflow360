@@ -3,16 +3,35 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthSession } from "@/lib/auth/get-auth-session";
 import ExcelJS from "exceljs";
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await getAuthSession();
     if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
+    const url = new URL(req.url);
+    const period = url.searchParams.get("period") || "this_month";
+    const repId = url.searchParams.get("repId") || "";
+    const status = url.searchParams.get("status") || "";
+    const productId = url.searchParams.get("productId") || "";
+
+    const now = new Date();
+    const startDate = (() => {
+      const d = new Date(now);
+      if (period === "last_month") { d.setMonth(d.getMonth() - 1); d.setDate(1); d.setHours(0,0,0,0); }
+      else if (period === "last_quarter") { d.setMonth(d.getMonth() - 3); d.setDate(1); d.setHours(0,0,0,0); }
+      else if (period === "this_year") { d.setMonth(0); d.setDate(1); d.setHours(0,0,0,0); }
+      else { d.setDate(1); d.setHours(0,0,0,0); }
+      return d;
+    })();
+
+    const where: Record<string, unknown> = { createdAt: { gte: startDate, lte: now } };
+    if (repId) where.salesRepId = repId;
+    if (status) where.status = status;
+    if (productId) where.quoteLines = { some: { productId } };
+
     const quotes = await prisma.quote.findMany({
-      include: {
-        customer: true,
-        salesRep: true,
-      },
+      where,
+      include: { customer: true, salesRep: true },
       orderBy: { createdAt: "desc" },
     });
 
