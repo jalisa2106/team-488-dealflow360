@@ -8,10 +8,11 @@ export interface SessionPayload {
   [key: string]: unknown;
 }
 
-const DEFAULT_SECRET = "dealflow360-insecure-default-jwt-secret-replace-in-env-key-99881122";
-
 function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || DEFAULT_SECRET;
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is missing");
+  }
   return new TextEncoder().encode(secret);
 }
 

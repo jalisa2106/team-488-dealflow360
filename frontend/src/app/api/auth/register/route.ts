@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword } from "@/lib/auth/hash";
+import { requireRole } from "@/lib/auth/rbac";
 import { z } from "zod";
 
 const RegisterSchema = z.object({
@@ -15,6 +16,7 @@ const RegisterSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await requireRole(["ADMIN"]);
     const body = await req.json();
     const parsed = RegisterSchema.safeParse(body);
 
@@ -60,6 +62,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ user: newUser, message: "User registered successfully" }, { status: 201 });
   } catch (error: any) {
     console.error("Registration error:", error);
+    if (error.name === "UnauthorizedError") {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error.name === "ForbiddenError") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

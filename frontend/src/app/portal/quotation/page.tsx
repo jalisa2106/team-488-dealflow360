@@ -1,5 +1,6 @@
-'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { ToastProvider, useToast } from '@/components/Toast';
 import { useSearchParams } from 'next/navigation';
 
 type PortalLine = {
@@ -12,7 +13,15 @@ type PortalLine = {
   proposedDiscount: number;
 };
 
-export default function CustomerPortalPage() {
+export default function CustomerPortalPageWrapper() {
+  return (
+    <ToastProvider>
+      <CustomerPortalPage />
+    </ToastProvider>
+  );
+}
+
+function CustomerPortalPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
   const quoteIdParam = searchParams.get('quoteId') || '';
@@ -23,6 +32,7 @@ export default function CustomerPortalPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const toast = useToast();
 
   useEffect(() => {
     async function fetchQuote() {
@@ -74,8 +84,9 @@ export default function CustomerPortalPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Submission failed');
       setResult(data);
+      toast.success('Counter-offer submitted successfully');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -93,8 +104,9 @@ export default function CustomerPortalPage() {
         throw new Error(data.error || 'Confirmation failed');
       }
       setResult({ confirmed: true });
+      toast.success('Quotation confirmed successfully');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setSubmitting(false);
     }

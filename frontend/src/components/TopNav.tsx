@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/deal-health', label: 'Deal Health', roles: ['ADMIN', 'SALES_MANAGER', 'SALES_REP', 'FINANCE'] },
   { href: '/reports', label: 'Reports' },
   { href: '/products', label: 'Products' },
+  { href: '/customers', label: 'Customers' },
   { href: '/admin/discount-config', label: 'Admin Rules', roles: ['ADMIN'] },
 ];
 

@@ -27,6 +27,7 @@ model User {
   approvalActions       ApprovalAction[]   @relation("ActorApprovalActions")
   auditLogs             AuditLog[]         @relation("ActorAuditLogs")
   notifications         Notification[]     @relation("RecipientNotifications")
+  sentInvites           CustomerInvite[]   @relation("InvitedByUser")
 
   @@index([role])
   @@map("users")
@@ -64,10 +65,30 @@ model Customer {
   portalUser   User?         @relation("PortalUserCustomers", fields: [portalUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   quotes       Quote[]
   negotiations Negotiation[]
+  invites      CustomerInvite[]
 
   @@index([tierId])
   @@index([active])
   @@map("customers")
+}
+
+model CustomerInvite {
+  id          String    @id @default(uuid())
+  customerId  String    @map("customer_id")
+  email       String
+  token       String    @unique
+  status      String    @default("PENDING") // PENDING, ACCEPTED, EXPIRED, REVOKED
+  invitedById String    @map("invited_by_id")
+  expiresAt   DateTime  @map("expires_at") @db.DateTime2
+  acceptedAt  DateTime? @map("accepted_at") @db.DateTime2
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime2
+
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invitedBy   User      @relation("InvitedByUser", fields: [invitedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customerId])
+  @@index([token])
+  @@map("customer_invites")
 }
 
 // -----------------------------------------------------------------------------
