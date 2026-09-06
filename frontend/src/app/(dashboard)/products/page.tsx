@@ -68,7 +68,7 @@ export default function ProductsPage() {
       const res = await fetch('/api/products/bulk', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds), active })
+        body: JSON.stringify({ ids: Array.from(selectedIds), action: active ? 'activate' : 'archive' })
       });
       if (res.ok) {
         setSelectedIds(new Set());
