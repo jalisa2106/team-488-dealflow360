@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local test scripts & configs
+test_db.ts
+test_*.ts
+docker-compose.yml
+static/
+frontend/

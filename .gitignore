@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 DealFlow360.pdf
+
+# Next.js & builds
+.next/
+**/.next/
+frontend/frontend/
+frontend/static/
+static/
+
+# Local test scripts & configs
+test_db.ts
+test_*.ts
+docker-compose.yml
