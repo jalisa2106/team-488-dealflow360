@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Toolbar } from '@/components/Toolbar';
 
 // ── Toolbar ────────────────────────────────────────────────────────────
 const FILTER_OPTS = ['All', 'Active', 'Paused', 'Cancelled'];
 const GROUP_OPTS  = ['None', 'Plan', 'Customer', 'Billing Cycle'];
 
 const STATUS_BADGE: Record<string, string> = {
-  ACTIVE: 'badge-success', PAUSED: 'badge-warning', CANCELLED: 'badge-danger',
+  ACTIVE: 'badge-success', PAUSED: 'badge-warning', CANCELLED: 'badge-danger', INACTIVE: 'badge-neutral',
 };
 
 export default function SubscriptionsPage() {
@@ -23,7 +24,15 @@ export default function SubscriptionsPage() {
         const res = await fetch('/api/subscriptions');
         const data = await res.json();
         if (data.success && data.data) {
-          setSubscriptions(data.data);
+          const now = new Date();
+          const mapped = data.data.map((s: any) => {
+            const isPastEnd = s.endDate && new Date(s.endDate) < now;
+            return {
+              ...s,
+              displayStatus: isPastEnd && s.status === 'ACTIVE' ? 'INACTIVE' : s.status,
+            };
+          });
+          setSubscriptions(mapped);
         }
       } catch (err) {
         console.error('Failed to fetch subscriptions', err);
@@ -34,13 +43,13 @@ export default function SubscriptionsPage() {
     fetchData();
   }, []);
 
-  const activeCount    = subscriptions.filter(s => s.status === 'ACTIVE').length;
-  const pausedCount    = subscriptions.filter(s => s.status === 'PAUSED').length;
-  const cancelledCount = subscriptions.filter(s => s.status === 'CANCELLED').length;
+  const activeCount    = subscriptions.filter(s => s.displayStatus === 'ACTIVE').length;
+  const pausedCount    = subscriptions.filter(s => s.displayStatus === 'PAUSED').length;
+  const cancelledCount = subscriptions.filter(s => s.displayStatus === 'CANCELLED').length;
 
   const visible = subscriptions.filter(s => {
     const matchFilter =
-      filter === 'All' || s.status?.toLowerCase() === filter.toLowerCase();
+      filter === 'All' || s.displayStatus?.toLowerCase() === filter.toLowerCase();
     const matchSearch =
       !search ||
       s.order?.quote?.customer?.companyName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -67,10 +76,10 @@ export default function SubscriptionsPage() {
         <td style={{ fontWeight: 600 }}>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
         <td>{row.plan?.name || 'Unknown'}</td>
         <td>{row.plan?.frequency || 'Monthly'}</td>
-        <td style={{ color: row.currentPeriodEnd ? 'inherit' : 'var(--fg-muted)' }}>
-          {row.currentPeriodEnd ? new Date(row.currentPeriodEnd).toLocaleDateString() : '–'}
+        <td style={{ color: row.endDate ? 'inherit' : 'var(--fg-muted)' }}>
+          {row.endDate ? new Date(row.endDate).toLocaleDateString() : 'Auto-renew'}
         </td>
-        <td><span className={`badge ${STATUS_BADGE[row.status] || 'badge-neutral'}`}>{row.status}</span></td>
+        <td><span className={`badge ${STATUS_BADGE[row.displayStatus] || 'badge-neutral'}`}>{row.displayStatus}</span></td>
       </tr>
     ));
 
@@ -90,39 +99,12 @@ export default function SubscriptionsPage() {
         <span className="chip chip-danger">{cancelledCount} Cancelled</span>
       </div>
 
-      {/* ── Toolbar ── */}
-      <div style={{
-        display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
-        marginBottom: 14, padding: '10px 14px',
-        background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8,
-      }}>
-        <input className="input" placeholder="🔍  Search subscriptions…" value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ minWidth: 180, flex: 1, maxWidth: 260, fontSize: 13, padding: '6px 10px' }}
-        />
-        <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Filter:</label>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {FILTER_OPTS.map(opt => (
-            <button key={opt} onClick={() => setFilter(opt)} style={{
-              padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 99,
-              cursor: 'pointer', border: '1.5px solid', transition: 'all 0.1s',
-              borderColor: filter === opt ? 'var(--primary)' : 'var(--border)',
-              background: filter === opt ? 'var(--primary)' : 'transparent',
-              color: filter === opt ? '#fff' : 'var(--fg-muted)',
-            }}>{opt}</button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Group by:</label>
-        <select className="select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)}
-          style={{ fontSize: 12, padding: '5px 8px', minWidth: 130 }}>
-          {GROUP_OPTS.map(o => <option key={o}>{o}</option>)}
-        </select>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--fg-muted)' }}>
-          {visible.length} of {subscriptions.length} subscriptions
-        </span>
-      </div>
+      <Toolbar
+        searchValue={search} onSearch={setSearch} searchPlaceholder="Search subscriptions…"
+        filterOptions={FILTER_OPTS} filterValue={filter} onFilter={setFilter}
+        groupOptions={GROUP_OPTS} groupValue={groupBy} onGroup={setGroupBy}
+        totalShown={visible.length} totalAll={subscriptions.length}
+      />
 
       <div className="table-wrap">
         <table className="data-table">
@@ -131,7 +113,7 @@ export default function SubscriptionsPage() {
               <th>Customer</th>
               <th>Plan</th>
               <th>Cycle</th>
-              <th>Next Bill</th>
+              <th>End Date</th>
               <th>Status</th>
             </tr>
           </thead>

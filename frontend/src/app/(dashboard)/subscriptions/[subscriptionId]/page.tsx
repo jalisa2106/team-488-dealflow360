@@ -9,6 +9,7 @@ interface Subscription {
   status: string;
   quantity: number;
   startedAt: string;
+  endDate?: string;
   subscriptionPlan: { name: string; frequency: string; price: number };
   order?: {
     orderNumber: string;
@@ -26,13 +27,18 @@ export default function BillingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [endDate, setEndDate] = useState<string>('');
 
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch(`/api/subscriptions/${subscriptionId}`);
         const data = await res.json();
-        if (data.success) setSub(data.data);
+        if (data.success) {
+          setSub(data.data);
+          setEndDate(data.data.endDate ? new Date(data.data.endDate).toISOString().split('T')[0] : '');
+        }
         else toast.error('Failed to load subscription');
       } catch {
         toast.error('Network error loading subscription');
@@ -61,6 +67,25 @@ export default function BillingDetailPage() {
       toast.error((err as Error).message);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleUpdateDate = async () => {
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/subscriptions/${subscriptionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endDate: endDate || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update subscription');
+      toast.success('Subscription end date updated');
+      setSub(prev => prev ? { ...prev, endDate: data.data.endDate } : prev);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -111,6 +136,26 @@ export default function BillingDetailPage() {
           <div className="field-group">
             <label className="field-label">Next Bill Date</label>
             <input className="input" value={nextSchedule ? new Date(nextSchedule.billingDate).toLocaleDateString() : 'N/A'} readOnly />
+          </div>
+          <div className="field-group">
+            <label className="field-label">End Date</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input 
+                type="date" 
+                className="input" 
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+              />
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={handleUpdateDate} 
+                disabled={updating || sub.endDate === (endDate || null)}
+              >
+                {updating ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            <span className="support-text" style={{ display: 'block', marginTop: 4 }}>Leave blank for auto-renew</span>
           </div>
         </div>
       </div>

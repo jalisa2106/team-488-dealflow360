@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ function formatCurrency(amount: number, currency: string): string {
 
 export default function NewQuotationPage() {
   const router = useRouter();
+  const toast = useToast();
 
   // ── Data from DB ─────────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
@@ -243,8 +245,8 @@ export default function NewQuotationPage() {
   };
 
   const handleCreate = async () => {
-    if (!selectedCustomer) return alert('Please select a customer.');
-    if (validLines.length === 0) return alert('Please select at least one product.');
+    if (!selectedCustomer) return toast.error('Please select a customer.');
+    if (validLines.length === 0) return toast.error('Please select at least one product.');
 
     setSaving(true);
     try {
@@ -267,7 +269,8 @@ export default function NewQuotationPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to create quote');
       router.push('/quotations');
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Something went wrong');
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
       setSaving(false);
     }
   };

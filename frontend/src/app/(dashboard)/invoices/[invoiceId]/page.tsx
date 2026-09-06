@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ invoiceId: string }> }) {
   const [paid, setPaid] = useState(false);
+  const toast = useToast();
 
   const trackerSteps = [
     { label: 'Order Confirmed', state: 'done' },
@@ -78,8 +80,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ invoic
         </div>
       ) : (
         <div className="action-row">
-          <button className="btn btn-success" onClick={() => {
-            if (confirm('Record payment of $2,730 for INV-1042?')) setPaid(true);
+          <button className="btn btn-success" onClick={async () => {
+            const ok = await toast.confirm('Record payment of $2,730 for INV-1042?');
+            if (ok) setPaid(true);
           }}>Record Payment</button>
           <button className="btn btn-secondary">Download Summary</button>
         </div>

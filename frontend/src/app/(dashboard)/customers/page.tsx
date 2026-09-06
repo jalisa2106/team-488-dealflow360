@@ -2,7 +2,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+import { useToast } from '@/components/Toast';
+
 export default function CustomersPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -38,10 +41,10 @@ export default function CustomersPage() {
       if (res.ok && data.success) {
         setInviteLink(data.inviteUrl);
       } else {
-        alert(data.error || 'Failed to generate invite');
+        toast.error(data.error || 'Failed to generate invite');
       }
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     } finally {
       setSubmitting(false);
     }
@@ -50,7 +53,7 @@ export default function CustomersPage() {
   const copyToClipboard = () => {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
-      alert('Link copied to clipboard!');
+      toast.success('Link copied to clipboard!');
       setInviteLink(null); // Close modal
     }
   };

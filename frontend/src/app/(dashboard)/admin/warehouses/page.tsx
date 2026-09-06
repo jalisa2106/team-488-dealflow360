@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import { Toolbar } from '@/components/Toolbar';
 
 interface Product { id: string; name: string; sku: string; }
 interface InventoryRow { product: Product; quantityAvailable: number; }
@@ -28,6 +29,10 @@ export default function WarehousesPage() {
   // Stock adjustment state
   const [stockEdit, setStockEdit] = useState<{ warehouseId: string; productId: string; qty: string }>({ warehouseId: '', productId: '', qty: '' });
   const [addProduct, setAddProduct] = useState<{ warehouseId: string; productId: string; qty: string }>({ warehouseId: '', productId: '', qty: '0' });
+
+  // Toolbar state
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('All');
 
   useEffect(() => {
     async function load() {
@@ -158,11 +163,26 @@ export default function WarehousesPage() {
         </div>
       )}
 
+
+      <Toolbar
+        searchValue={search} onSearch={setSearch} searchPlaceholder="Search warehouses..."
+        filterOptions={['All', 'Active', 'Inactive']} filterValue={filter} onFilter={setFilter}
+        totalShown={warehouses.filter(w => (filter === 'All' || (filter === 'Active' && w.active) || (filter === 'Inactive' && !w.active)) && (w.name.toLowerCase().includes(search.toLowerCase()) || w.code.toLowerCase().includes(search.toLowerCase()))).length}
+        totalAll={warehouses.length}
+      />
+
       {/* Warehouse list */}
       {warehouses.length === 0 ? (
         <div className="notice">No warehouses configured yet. Create one above.</div>
       ) : (
-        warehouses.map(w => (
+        warehouses
+          .filter(w => {
+            if (filter === 'Active' && !w.active) return false;
+            if (filter === 'Inactive' && w.active) return false;
+            if (search && !w.name.toLowerCase().includes(search.toLowerCase()) && !w.code.toLowerCase().includes(search.toLowerCase())) return false;
+            return true;
+          })
+          .map(w => (
           <div key={w.id} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>

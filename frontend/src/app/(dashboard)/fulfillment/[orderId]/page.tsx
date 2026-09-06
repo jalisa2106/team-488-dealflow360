@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/navigation';
 
 export default function FulfillmentDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
+  const toast = useToast();
   const [accepted, setAccepted] = useState(false);
   const [overriding, setOverriding] = useState(false);
   const [allocs, setAllocs] = useState<any[]>([]);
@@ -78,9 +80,9 @@ export default function FulfillmentDetailPage({ params }: { params: Promise<{ or
       });
       if (!res.ok) throw new Error('Override failed');
       setOverriding(false);
-      alert('Override saved!');
-    } catch (err: any) {
-      alert(err.message);
+      toast.success('Override saved!');
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     }
   };
 

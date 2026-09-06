@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 import { useRouter, useParams } from 'next/navigation';
 
 type LineItem = {
@@ -20,6 +21,7 @@ type Upsell = {
 };
 
 export default function QuotationDetailPage() {
+  const toast = useToast();
   const params = useParams();
   const quotationId = params.quotationId as string;
   const router = useRouter();
@@ -201,9 +203,9 @@ export default function QuotationDetailPage() {
       });
       if (!res.ok) throw new Error('Save failed');
       lastSavedLines.current = JSON.stringify(lines);
-      alert('Draft saved successfully');
-    } catch (err: any) {
-      alert(err.message);
+      toast.success('Draft saved successfully');
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -212,7 +214,8 @@ export default function QuotationDetailPage() {
   const handleSubmit = async () => {
     const hasViolation = lines.some(l => l.discount > l.limit);
     if (hasViolation) {
-      if (!confirm('Some discounts exceed 30%. Submit anyway for approval?')) return;
+      const ok = await toast.confirm('Some discounts exceed 30%. Submit anyway for approval?');
+      if (!ok) return;
     }
     
     // First save the draft
@@ -224,14 +227,15 @@ export default function QuotationDetailPage() {
       if (!res.ok) throw new Error('Submit failed');
       setSubmitted(true);
       setTimeout(() => router.push('/approvals'), 1200);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
       setSubmitting(false);
     }
   };
 
   const handleConfirm = async () => {
-    if (!confirm('Are you sure you want to confirm this quotation and create an order?')) return;
+    const ok = await toast.confirm('Are you sure you want to confirm this quotation and create an order?');
+    if (!ok) return;
     
     setSubmitting(true);
     try {
@@ -240,10 +244,10 @@ export default function QuotationDetailPage() {
       if (!res.ok) throw new Error(data.error || 'Confirmation failed');
       
       setQuote({ ...quote, status: 'CONFIRMED' });
-      alert('Quotation confirmed and Order created!');
+      toast.success('Quotation confirmed and Order created!');
       setTimeout(() => router.push('/fulfillment'), 1200);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
       setSubmitting(false);
     }
   };

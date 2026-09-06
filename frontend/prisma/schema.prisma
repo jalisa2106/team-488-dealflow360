@@ -408,6 +408,7 @@ model Subscription {
   quantity           Decimal          @default(1) @db.Decimal(12, 2)
   status             String           @default("ACTIVE")
   startedAt          DateTime         @default(now()) @map("started_at") @db.DateTime2
+  endDate            DateTime?        @map("end_date") @db.DateTime2
   createdAt          DateTime         @default(now()) @map("created_at") @db.DateTime2
   updatedAt          DateTime         @updatedAt @map("updated_at") @db.DateTime2
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ToastProvider, useToast } from '@/components/Toast';
-import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 type PortalLine = {
   id: string;
@@ -22,6 +22,7 @@ export default function CustomerPortalPageWrapper() {
 }
 
 function CustomerPortalPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
   const quoteIdParam = searchParams.get('quoteId') || '';
@@ -55,7 +56,7 @@ function CustomerPortalPage() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login';
+    router.push('/login');
   };
 
   const updateProposedDiscount = (lineId: string, val: number) => {
@@ -71,7 +72,7 @@ function CustomerPortalPage() {
         .map(l => ({ lineId: l.id, proposedDiscountPercent: l.proposedDiscount }));
 
       if (proposedTerms.length === 0) {
-        alert('No changes detected. Modify a discount to submit a counter-offer.');
+        toast.error('No changes detected. Modify a discount to submit a counter-offer.');
         setSubmitting(false);
         return;
       }

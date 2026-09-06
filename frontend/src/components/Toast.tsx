@@ -10,12 +10,14 @@ interface Toast {
 interface ToastContextType {
   success: (msg: string) => void;
   error: (msg: string) => void;
+  confirm: (msg: string) => Promise<boolean>;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [confirmState, setConfirmState] = useState<{ msg: string; resolve: (val: boolean) => void } | null>(null);
 
   const addToast = useCallback((message: string, type: 'success' | 'error') => {
     const id = Date.now();
@@ -28,9 +30,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const success = useCallback((msg: string) => addToast(msg, 'success'), [addToast]);
   const error = useCallback((msg: string) => addToast(msg, 'error'), [addToast]);
+  const confirm = useCallback((msg: string) => {
+    return new Promise<boolean>((resolve) => {
+      setConfirmState({ msg, resolve });
+    });
+  }, []);
 
   return (
-    <ToastContext.Provider value={{ success, error }}>
+    <ToastContext.Provider value={{ success, error, confirm }}>
       {children}
       {toasts.length > 0 && (
         <div style={{
@@ -62,6 +69,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           ))}
         </div>
       )}
+      
+      {confirmState && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'var(--surface)', padding: 24, borderRadius: 12,
+            width: 400, maxWidth: '90%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 18, color: 'var(--fg)' }}>Confirm Action</h3>
+            <p style={{ margin: '0 0 24px', color: 'var(--fg-muted)' }}>{confirmState.msg}</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => {
+                confirmState.resolve(false);
+                setConfirmState(null);
+              }}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => {
+                confirmState.resolve(true);
+                setConfirmState(null);
+              }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes slideIn {
           from { transform: translateX(100%); opacity: 0; }

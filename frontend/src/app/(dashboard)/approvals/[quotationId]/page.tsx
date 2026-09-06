@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
 const RISK_BADGE: Record<string, string> = {
   CRITICAL: 'badge-danger', HIGH: 'badge-danger', MEDIUM: 'badge-warning', LOW: 'badge-success',
@@ -10,6 +11,7 @@ const RISK_BADGE: Record<string, string> = {
 export default function ApprovalDetailPage({ params }: { params: Promise<{ quotationId: string }> }) {
   const { quotationId } = use(params);
   const router = useRouter();
+  const toast = useToast();
 
   const [approval, setApproval] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +64,8 @@ export default function ApprovalDetailPage({ params }: { params: Promise<{ quota
       if (action === 'APPROVE') {
         setTimeout(() => router.push('/fulfillment'), 1400);
       }
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     } finally {
       setActing(false);
       setShowReturnModal(false);

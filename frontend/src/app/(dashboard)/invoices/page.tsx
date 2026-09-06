@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const FILTER_OPTS = ['All', 'Unpaid', 'Paid', 'Overdue'];
+import { useToast } from '@/components/Toast';
+
+const FILTER_OPTS = ['All', 'DRAFT', 'ISSUED', 'PAID', 'CANCELLED'];
 const GROUP_OPTS  = ['None', 'Customer', 'Status', 'Due Date'];
 
 export default function InvoicesPage() {
@@ -11,6 +13,9 @@ export default function InvoicesPage() {
   const [search,  setSearch]  = useState('');
   const [filter,  setFilter]  = useState('All');
   const [groupBy, setGroupBy] = useState('None');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     async function fetchData() {
@@ -29,8 +34,9 @@ export default function InvoicesPage() {
     fetchData();
   }, []);
 
-  const unpaidCount = invoices.filter(i => i.status === 'UNPAID').length;
-  const paidCount   = invoices.filter(i => i.status === 'PAID').length;
+  const draftCount    = invoices.filter(i => i.status === 'DRAFT').length;
+  const issuedCount   = invoices.filter(i => i.status === 'ISSUED').length;
+  const paidCount     = invoices.filter(i => i.status === 'PAID').length;
 
   const visible = invoices.filter(i => {
     const matchFilter =
@@ -42,6 +48,50 @@ export default function InvoicesPage() {
     return matchFilter && matchSearch;
   });
 
+  const allVisibleSelected = visible.length > 0 && visible.every(row => selectedIds.has(row.id));
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      const next = new Set(selectedIds);
+      visible.forEach(r => next.delete(r.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      visible.forEach(r => next.add(r.id));
+      setSelectedIds(next);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleBulkMarkPaid = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const res = await fetch('/api/invoices/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), action: 'MARK_PAID' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      toast.success(data.message || 'Invoices marked as paid');
+      
+      // Update local state
+      setInvoices(prev => prev.map(inv => selectedIds.has(inv.id) ? { ...inv, status: 'PAID' } : inv));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -50,7 +100,8 @@ export default function InvoicesPage() {
       </div>
 
       <div className="chip-row">
-        <span className="chip chip-danger">{unpaidCount} Unpaid</span>
+        <span className="chip chip-neutral">{draftCount} Draft</span>
+        <span className="chip chip-warning">{issuedCount} Issued</span>
         <span className="chip chip-success">{paidCount} Paid</span>
       </div>
 
@@ -88,10 +139,41 @@ export default function InvoicesPage() {
         </span>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'center',
+          padding: '10px 14px', marginBottom: 14,
+          background: 'var(--primary)', color: '#fff', borderRadius: 8,
+          animation: 'fadein 0.2s ease-out'
+        }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>{selectedIds.size} selected</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button 
+              className="btn" 
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '4px 12px', fontSize: 12 }}
+              onClick={handleBulkMarkPaid}
+              disabled={bulkUpdating}
+            >
+              {bulkUpdating ? 'Processing...' : 'Mark as Paid'}
+            </button>
+            <button 
+              className="btn" 
+              style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', padding: '4px 12px', fontSize: 12 }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="table-wrap">
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{ width: 40, textAlign: 'center' }}>
+                <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} />
+              </th>
               <th>Invoice #</th>
               <th>Customer</th>
               <th className="text-right">Amount</th>
@@ -107,6 +189,9 @@ export default function InvoicesPage() {
             ) : (
               visible.map(row => (
                 <tr key={row.id} className="clickable" onClick={() => window.location.href = `/invoices/${row.id}`}>
+                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelect(row.id)} />
+                  </td>
                   <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{row.id}</td>
                   <td>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
                   <td className="text-right" style={{ fontWeight: 600 }}>${Number(row.total || 0).toLocaleString()}</td>
@@ -115,7 +200,7 @@ export default function InvoicesPage() {
                       {row.status}
                     </span>
                   </td>
-                  <td style={{ color: row.status === 'UNPAID' ? 'var(--danger-fg)' : 'var(--fg-muted)', fontWeight: row.status === 'UNPAID' ? 700 : 400 }}>
+                  <td style={{ color: row.status === 'ISSUED' || row.status === 'DRAFT' ? 'var(--danger-fg)' : 'var(--fg-muted)', fontWeight: row.status === 'ISSUED' || row.status === 'DRAFT' ? 700 : 400 }}>
                     {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '–'}
                   </td>
                 </tr>

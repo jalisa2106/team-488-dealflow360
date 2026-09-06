@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Toolbar } from '@/components/Toolbar';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -11,6 +12,7 @@ export default function OrdersPage() {
   const [groupBy, setGroupBy] = useState<'none' | 'status' | 'warehouse'>('none');
   
   // Explicit filters to send to API
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
 
@@ -41,20 +43,28 @@ export default function OrdersPage() {
   }
 
   // Handle group by toggles - these are mutually exclusive
-  const toggleGroupBy = (type: 'none' | 'status' | 'warehouse') => {
-    setGroupBy(type);
+  const toggleGroupBy = (type: string) => {
+    setGroupBy(type as 'none' | 'status' | 'warehouse');
     if (type === 'none') {
       setStatusFilter('');
       setWarehouseFilter('');
     }
   };
 
+  const filteredOrders = orders.filter(o => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    return o.orderNumber?.toLowerCase().includes(term) ||
+           o.quote?.quoteNumber?.toLowerCase().includes(term) ||
+           o.quote?.customer?.companyName?.toLowerCase().includes(term);
+  });
+
   // The actual grouped rendering data
   const groupedOrders = (() => {
-    if (groupBy === 'none') return { 'All Orders': orders };
+    if (groupBy === 'none') return { 'All Orders': filteredOrders };
     
     const groups: Record<string, any[]> = {};
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       if (groupBy === 'status') {
         const s = order.status.replace('_', ' ') || 'UNKNOWN';
         if (!groups[s]) groups[s] = [];
@@ -140,43 +150,46 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <select 
-            value={statusFilter} 
-            onChange={e => setStatusFilter(e.target.value)} 
-            className="input-field" 
-            style={{ width: 200 }}
-          >
-            <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="CONFIRMED">Confirmed</option>
-            <option value="FULFILLING">Fulfilling</option>
-            <option value="PARTIALLY_FULFILLED">Partially Fulfilled</option>
-            <option value="FULFILLED">Fulfilled</option>
-            <option value="CANCELLED">Cancelled</option>
-            <option value="BACKORDERED">Backordered</option>
-          </select>
-          
-          <select 
-            value={warehouseFilter} 
-            onChange={e => setWarehouseFilter(e.target.value)} 
-            className="input-field" 
-            style={{ width: 200 }}
-          >
-            <option value="">All Warehouses</option>
-            {warehouses.map(w => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="toggle-group" style={{ display: 'inline-flex' }}>
-          <button className={`toggle-btn ${groupBy === 'none' ? 'active' : ''}`} onClick={() => toggleGroupBy('none')}>List</button>
-          <button className={`toggle-btn ${groupBy === 'status' ? 'active' : ''}`} onClick={() => toggleGroupBy('status')}>Group by Status</button>
-          <button className={`toggle-btn ${groupBy === 'warehouse' ? 'active' : ''}`} onClick={() => toggleGroupBy('warehouse')}>Group by Warehouse</button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
       </div>
+
+      <Toolbar 
+        searchPlaceholder="Search by order # or customer..."
+        searchValue={search} onSearch={setSearch}
+        groupOptions={['none', 'status', 'warehouse']} groupValue={groupBy} onGroup={toggleGroupBy}
+        totalShown={filteredOrders.length} totalAll={orders.length}
+        customFilters={
+          <>
+            <select 
+              value={statusFilter} 
+              onChange={e => setStatusFilter(e.target.value)} 
+              className="select" 
+              style={{ width: 160, fontSize: 13 }}
+            >
+              <option value="">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="FULFILLING">Fulfilling</option>
+              <option value="PARTIALLY_FULFILLED">Partially Fulfilled</option>
+              <option value="FULFILLED">Fulfilled</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="BACKORDERED">Backordered</option>
+            </select>
+            
+            <select 
+              value={warehouseFilter} 
+              onChange={e => setWarehouseFilter(e.target.value)} 
+              className="select" 
+              style={{ width: 160, fontSize: 13 }}
+            >
+              <option value="">All Warehouses</option>
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </>
+        }
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {Object.entries(groupedOrders).map(([groupName, items]) => (

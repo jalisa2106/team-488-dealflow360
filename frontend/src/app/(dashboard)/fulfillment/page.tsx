@@ -1,58 +1,9 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 
-// ── Shared toolbar component ───────────────────────────────────────────────
-function Toolbar({
-  searchValue, onSearch, searchPlaceholder,
-  groupOptions, groupValue, onGroup,
-  filterOptions, filterValue, onFilter,
-  totalShown, totalAll,
-}: {
-  searchValue: string; onSearch: (v: string) => void; searchPlaceholder: string;
-  groupOptions: string[]; groupValue: string; onGroup: (v: string) => void;
-  filterOptions: string[]; filterValue: string; onFilter: (v: string) => void;
-  totalShown: number; totalAll: number;
-}) {
-  return (
-    <div style={{
-      display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
-      marginBottom: 14, padding: '10px 14px',
-      background: 'var(--surface)', border: '1.5px solid var(--border)',
-      borderRadius: 8,
-    }}>
-      <input
-        className="input"
-        placeholder={`🔍  ${searchPlaceholder}`}
-        value={searchValue}
-        onChange={(e) => onSearch(e.target.value)}
-        style={{ minWidth: 180, flex: 1, maxWidth: 260, fontSize: 13, padding: '6px 10px' }}
-      />
-      <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Filter:</label>
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {filterOptions.map((opt) => (
-          <button key={opt} onClick={() => onFilter(opt)} style={{
-            padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 99, cursor: 'pointer',
-            border: '1.5px solid', transition: 'all 0.1s',
-            borderColor: filterValue === opt ? 'var(--primary)' : 'var(--border)',
-            background: filterValue === opt ? 'var(--primary)' : 'transparent',
-            color: filterValue === opt ? '#fff' : 'var(--fg-muted)',
-          }}>{opt}</button>
-        ))}
-      </div>
-      <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>Group by:</label>
-      <select className="select" value={groupValue} onChange={(e) => onGroup(e.target.value)}
-        style={{ fontSize: 12, padding: '5px 8px', minWidth: 120 }}>
-        {groupOptions.map((o) => <option key={o}>{o}</option>)}
-      </select>
-      <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--fg-muted)' }}>
-        {totalShown} of {totalAll}
-      </span>
-    </div>
-  );
-}
+import { Toolbar } from '@/components/Toolbar';
 
 export default function FulfillmentPage() {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -62,6 +13,9 @@ export default function FulfillmentPage() {
   // Group by states
   const [groupInventoryBy, setGroupInventoryBy] = useState<'none' | 'warehouse'>('none');
   const [groupOrdersBy, setGroupOrdersBy] = useState<'none' | 'status'>('none');
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     async function fetchData() {
@@ -106,6 +60,28 @@ export default function FulfillmentPage() {
     });
     return Object.fromEntries(Object.entries(groups).sort());
   })();
+
+  const handleBulkMarkFulfilling = async () => {
+    if (selectedOrderIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const res = await fetch('/api/fulfillment/bulk-allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedOrderIds), action: 'MARK_FULFILLING' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      toast.success(data.message || 'Orders marked as fulfilling');
+      
+      setOrders(prev => prev.map(o => selectedOrderIds.has(o.id) ? { ...o, status: 'FULFILLING' } : o));
+      setSelectedOrderIds(new Set());
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   const renderInventoryTable = (items: any[]) => (
     <div className="table-wrap">
@@ -156,11 +132,36 @@ export default function FulfillmentPage() {
     </div>
   );
 
-  const renderOrdersTable = (items: any[]) => (
+  const renderOrdersTable = (items: any[]) => {
+    const allItemsSelected = items.length > 0 && items.every(o => selectedOrderIds.has(o.id));
+    
+    const toggleSelectAll = () => {
+      if (allItemsSelected) {
+        const next = new Set(selectedOrderIds);
+        items.forEach(o => next.delete(o.id));
+        setSelectedOrderIds(next);
+      } else {
+        const next = new Set(selectedOrderIds);
+        items.forEach(o => next.add(o.id));
+        setSelectedOrderIds(next);
+      }
+    };
+    
+    const toggleSelect = (id: string) => {
+      const next = new Set(selectedOrderIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setSelectedOrderIds(next);
+    };
+
+    return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
+            <th style={{ width: 40, textAlign: 'center' }}>
+              <input type="checkbox" checked={allItemsSelected} onChange={toggleSelectAll} />
+            </th>
             <th>Order</th>
             <th>Customer</th>
             <th>Status</th>
@@ -170,7 +171,7 @@ export default function FulfillmentPage() {
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>No orders in this group.</td></tr>
+            <tr><td colSpan={6} style={{textAlign: 'center', padding: 20}}>No orders in this group.</td></tr>
           ) : (
             items.map((order: any) => {
               const allocations = order.fulfillmentAllocations || [];
@@ -180,6 +181,9 @@ export default function FulfillmentPage() {
 
               return (
                 <tr key={order.id}>
+                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedOrderIds.has(order.id)} onChange={() => toggleSelect(order.id)} />
+                  </td>
                   <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
                     <Link href={`/fulfillment/${order.id}`}>
                       {order.quote?.quoteNumber || order.id.slice(0, 8)}
@@ -204,7 +208,8 @@ export default function FulfillmentPage() {
         </tbody>
       </table>
     </div>
-  );
+    );
+  };
 
   return (
     <div>
@@ -217,11 +222,12 @@ export default function FulfillmentPage() {
       <div className="section" style={{ marginBottom: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Warehouse Inventory</h2>
-          <div className="toggle-group" style={{ display: 'inline-flex' }}>
-            <button className={`toggle-btn ${groupInventoryBy === 'none' ? 'active' : ''}`} onClick={() => setGroupInventoryBy('none')}>List</button>
-            <button className={`toggle-btn ${groupInventoryBy === 'warehouse' ? 'active' : ''}`} onClick={() => setGroupInventoryBy('warehouse')}>Group by Warehouse</button>
-          </div>
         </div>
+        
+        <Toolbar 
+          searchPlaceholder="Search inventory..." 
+          groupOptions={['none', 'warehouse']} groupValue={groupInventoryBy} onGroup={(v) => setGroupInventoryBy(v as any)}
+        />
         
         {inventory.length === 0 ? (
           <div className="notice">No inventory records found. Ensure warehouses and products are seeded.</div>
@@ -241,11 +247,40 @@ export default function FulfillmentPage() {
       <div className="section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Orders Awaiting Fulfillment</h2>
-          <div className="toggle-group" style={{ display: 'inline-flex' }}>
-            <button className={`toggle-btn ${groupOrdersBy === 'none' ? 'active' : ''}`} onClick={() => setGroupOrdersBy('none')}>List</button>
-            <button className={`toggle-btn ${groupOrdersBy === 'status' ? 'active' : ''}`} onClick={() => setGroupOrdersBy('status')}>Group by Status</button>
-          </div>
         </div>
+        
+        <Toolbar 
+          searchPlaceholder="Search order..." 
+          groupOptions={['none', 'status']} groupValue={groupOrdersBy} onGroup={(v) => setGroupOrdersBy(v as any)}
+        />
+        
+        {selectedOrderIds.size > 0 && (
+          <div style={{
+            display: 'flex', gap: 10, alignItems: 'center',
+            padding: '10px 14px', marginBottom: 14,
+            background: 'var(--primary)', color: '#fff', borderRadius: 8,
+            animation: 'fadein 0.2s ease-out'
+          }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{selectedOrderIds.size} orders selected</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button 
+                className="btn" 
+                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '4px 12px', fontSize: 12 }}
+                onClick={handleBulkMarkFulfilling}
+                disabled={bulkUpdating}
+              >
+                {bulkUpdating ? 'Processing...' : 'Mark as Fulfilling'}
+              </button>
+              <button 
+                className="btn" 
+                style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', padding: '4px 12px', fontSize: 12 }}
+                onClick={() => setSelectedOrderIds(new Set())}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {orders.length === 0 ? (
           <div className="notice">No orders currently awaiting fulfillment. Orders appear here when a quote is approved and confirmed.</div>

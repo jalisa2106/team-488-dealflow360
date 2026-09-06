@@ -1,15 +1,19 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Toolbar } from '@/components/Toolbar';
 
-const FILTER_OPTS = ['All', 'Active', 'Archived', 'Hardware', 'Service', 'Subscription'];
-const GROUP_OPTS  = ['None', 'Category', 'Type', 'Status'];
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
+  const router = useRouter();
+  const toast = useToast();
+  const [products, setProducts] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = useState<'none' | 'category'>('none');
+  const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -41,7 +45,7 @@ export default function ProductsPage() {
     setSelectedIds(next);
   };
 
-  const toggleSelectAll = (subset: any[]) => {
+  const toggleSelectAll = (subset: { id: string }[]) => {
     const subsetIds = subset.map(p => p.id);
     const allSelected = subsetIds.every(id => selectedIds.has(id));
     const next = new Set(selectedIds);
@@ -56,7 +60,8 @@ export default function ProductsPage() {
 
   const handleBulkAction = async (active: boolean) => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Are you sure you want to ${active ? 'activate' : 'archive'} ${selectedIds.size} products?`)) return;
+    const ok = await toast.confirm(`Are you sure you want to ${active ? 'activate' : 'archive'} ${selectedIds.size} products?`);
+    if (!ok) return;
 
     setSubmitting(true);
     try {
@@ -70,20 +75,26 @@ export default function ProductsPage() {
         await fetchData(); // Refresh
       } else {
         const data = await res.json();
-        alert(data.error || 'Bulk action failed');
+        toast.error(data.error || 'Bulk action failed');
       }
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const filteredProducts = products.filter(p => {
+    if (!search) return true;
+    return p.name.toLowerCase().includes(search.toLowerCase()) || 
+           p.sku?.toLowerCase().includes(search.toLowerCase());
+  });
+
   const groupedProducts = (() => {
-    if (groupBy === 'none') return { 'All Products': products };
+    if (groupBy === 'none') return { 'All Products': filteredProducts };
     
-    const groups: Record<string, any[]> = {};
-    products.forEach(p => {
+    const groups: Record<string, unknown[]> = {};
+    filteredProducts.forEach((p: any) => {
       const cat = p.category?.name || 'Uncategorized';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(p);
@@ -128,13 +139,13 @@ export default function ProductsPage() {
                   <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelection(row.id)} />
                   </td>
-                  <td style={{ fontWeight: 700 }} onClick={() => window.location.href = `/products/${row.id}`}>{row.name}</td>
-                  <td style={{ color: 'var(--fg-muted)' }} onClick={() => window.location.href = `/products/${row.id}`}>{row.sku}</td>
-                  <td onClick={() => window.location.href = `/products/${row.id}`}><span className="badge badge-neutral">{row.category?.name || 'Uncategorized'}</span></td>
-                  <td className="text-right" style={{ fontWeight: 600 }} onClick={() => window.location.href = `/products/${row.id}`}>${Number(row.basePrice || 0).toLocaleString()}</td>
-                  <td onClick={() => window.location.href = `/products/${row.id}`}>{row.unit}</td>
-                  <td className="text-right" onClick={() => window.location.href = `/products/${row.id}`}>{Number(row.taxPercent || 0)}%</td>
-                  <td onClick={() => window.location.href = `/products/${row.id}`}>
+                  <td style={{ fontWeight: 700 }}>{row.name}</td>
+                  <td style={{ color: 'var(--fg-muted)' }}>{row.sku}</td>
+                  <td><span className="badge badge-neutral">{row.category?.name || 'Uncategorized'}</span></td>
+                  <td className="text-right" style={{ fontWeight: 600 }}>${Number(row.basePrice || 0).toLocaleString()}</td>
+                  <td>{row.unit}</td>
+                  <td className="text-right">{Number(row.taxPercent || 0)}%</td>
+                  <td>
                     <span className={`badge ${row.active ? 'badge-success' : 'badge-neutral'}`}>
                       {row.active ? 'Active' : 'Archived'}
                     </span>
@@ -180,13 +191,16 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 className="section-title" style={{ margin: 0 }}>Products</h2>
-        <div className="toggle-group" style={{ display: 'inline-flex' }}>
-          <button className={`toggle-btn ${groupBy === 'none' ? 'active' : ''}`} onClick={() => setGroupBy('none')}>List</button>
-          <button className={`toggle-btn ${groupBy === 'category' ? 'active' : ''}`} onClick={() => setGroupBy('category')}>Group by Category</button>
-        </div>
       </div>
+
+      <Toolbar 
+        searchPlaceholder="Search products by name or SKU..."
+        searchValue={search} onSearch={setSearch}
+        groupOptions={['none', 'category']} groupValue={groupBy} onGroup={(v) => setGroupBy(v as 'none' | 'category')}
+        totalShown={filteredProducts.length} totalAll={products.length}
+      />
 
       {/* Action Bar */}
       {selectedIds.size > 0 && (
