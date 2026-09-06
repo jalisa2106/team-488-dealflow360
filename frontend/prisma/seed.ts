@@ -354,7 +354,16 @@ async function seedCatalog() {
 async function seedCustomers(tierMap: Record<string, string>, userMap: Record<string, string>) {
   console.log("Seeding named demo customers (with portal users)...");
 
-  const namedCustomers = [
+  interface NamedCustomer {
+    company: string;
+    contact: string | null;
+    email: string | null;
+    tier: string | null;
+    active: boolean;
+    portal: boolean;
+  }
+
+  const namedCustomers: NamedCustomer[] = [
     { company: "Acme Corp", contact: "John Doe", email: "john@acme.com", tier: "GOLD", active: true, portal: true },
     { company: "Beta Industries", contact: "Priya Shah", email: "priya@beta-industries.com", tier: "SILVER", active: true, portal: true },
     { company: "Nova Systems", contact: "Sam Patel", email: "sam@novasystems.com", tier: "BRONZE", active: true, portal: true },
