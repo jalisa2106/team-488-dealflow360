@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
 // ── Column theme ──────────────────────────────────────────────────────────────
 const COL_THEME: Record<string, { colBg: string; pillBg: string; pillText: string }> = {
@@ -66,6 +67,8 @@ export default function QuotationsPage() {
   const [quotes,      setQuotes]      = useState<any[]>([]);
   const [totalCount,  setTotalCount]  = useState(0);
   const [loading,     setLoading]     = useState(true);
+  const [generating,  setGenerating]  = useState(false);
+  const toast = useToast();
 
   // Search (shared between views, debounced for API calls in table view)
   const [search, setSearch] = useState('');
@@ -169,6 +172,32 @@ export default function QuotationsPage() {
     });
   }, []);
 
+  const handleGenerateInvoice = async () => {
+    if (selectedIds.size === 0) return;
+    const ok = await toast.confirm(`Generate invoices for ${selectedIds.size} selected quotations?`);
+    if (!ok) return;
+
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/invoices/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteIds: Array.from(selectedIds) })
+      });
+      if (res.ok) {
+        toast.success('Invoices generated successfully.');
+        setSelectedIds(new Set());
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to generate invoices.');
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -195,6 +224,14 @@ export default function QuotationsPage() {
                 style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 onClick={() => setSelectedIds(new Set())}
               >Clear</button>
+              <button
+                className="btn btn-primary"
+                style={{ marginLeft: 8, fontSize: 12, padding: '4px 10px' }}
+                onClick={handleGenerateInvoice}
+                disabled={generating}
+              >
+                {generating ? 'Generating...' : 'Generate Invoice'}
+              </button>
             </div>
           )}
           <Link href="/quotations/new" className="btn btn-primary">+ New Quotation</Link>

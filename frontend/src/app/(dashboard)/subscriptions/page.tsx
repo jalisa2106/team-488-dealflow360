@@ -72,7 +72,7 @@ export default function SubscriptionsPage() {
     }
 
     const renderRows = (items: any[]) => items.map(row => (
-      <tr key={row.id} className="clickable" onClick={() => window.location.href = `/subscriptions/${row.id}`}>
+      <tr key={row.id} className="clickable" onClick={() => router.push(`/subscriptions/${row.id}`)}>
         <td style={{ fontWeight: 600 }}>{row.order?.quote?.customer?.companyName || 'Unknown'}</td>
         <td>{row.plan?.name || 'Unknown'}</td>
         <td>{row.plan?.frequency || 'Monthly'}</td>

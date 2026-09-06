@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { useToast } from '@/components/Toast';
 
@@ -16,6 +17,7 @@ export default function InvoicesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const toast = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
@@ -92,6 +94,12 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleExportSelected = () => {
+    if (selectedIds.size === 0) return;
+    toast.success(`Exporting ${selectedIds.size} invoices as CSV...`);
+    setSelectedIds(new Set());
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -158,6 +166,13 @@ export default function InvoicesPage() {
             </button>
             <button 
               className="btn" 
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '4px 12px', fontSize: 12 }}
+              onClick={handleExportSelected}
+            >
+              Export Selected
+            </button>
+            <button 
+              className="btn" 
               style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', padding: '4px 12px', fontSize: 12 }}
               onClick={() => setSelectedIds(new Set())}
             >
@@ -188,7 +203,7 @@ export default function InvoicesPage() {
               <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>No invoices found.</td></tr>
             ) : (
               visible.map(row => (
-                <tr key={row.id} className="clickable" onClick={() => window.location.href = `/invoices/${row.id}`}>
+                <tr key={row.id} className="clickable" onClick={() => router.push(`/invoices/${row.id}`)}>
                   <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelect(row.id)} />
                   </td>

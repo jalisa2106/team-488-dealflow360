@@ -83,6 +83,28 @@ export default function FulfillmentPage() {
     }
   };
 
+  const handleBulkMarkFulfilled = async () => {
+    if (selectedOrderIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const res = await fetch('/api/fulfillment/bulk-allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedOrderIds), action: 'MARK_FULFILLED' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      toast.success(data.message || 'Orders marked as fulfilled');
+      
+      setOrders(prev => prev.map(o => selectedOrderIds.has(o.id) ? { ...o, status: 'FULFILLED' } : o));
+      setSelectedOrderIds(new Set());
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   const renderInventoryTable = (items: any[]) => (
     <div className="table-wrap">
       <table className="data-table">
@@ -270,6 +292,14 @@ export default function FulfillmentPage() {
                 disabled={bulkUpdating}
               >
                 {bulkUpdating ? 'Processing...' : 'Mark as Fulfilling'}
+              </button>
+              <button 
+                className="btn" 
+                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '4px 12px', fontSize: 12 }}
+                onClick={handleBulkMarkFulfilled}
+                disabled={bulkUpdating}
+              >
+                {bulkUpdating ? 'Processing...' : 'Mark Fulfilled'}
               </button>
               <button 
                 className="btn" 

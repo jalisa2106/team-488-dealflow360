@@ -342,6 +342,47 @@ label.field-label { display: block; font-weight: 600; font-size: 13px; margin-bo
 .topbar-tab:hover { color: #fff; }
 .topbar-tab.active { color: #fff; border-bottom-color: #fff; font-weight: 700; background: rgba(255,255,255,0.1); }
 
+/* ── Topbar Dropdowns ── */
+.topbar-dropdown {
+  position: relative;
+  display: flex;
+  height: var(--topbar-h);
+}
+.topbar-dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--surface);
+  min-width: 180px;
+  box-shadow: 4px 4px 0 var(--border);
+  border: 2px solid var(--border);
+  z-index: 100;
+  border-radius: 4px;
+  padding: 4px 0;
+}
+.topbar-dropdown:hover .topbar-dropdown-content {
+  display: block;
+}
+.topbar-dropdown-item {
+  display: block;
+  padding: 10px 16px;
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.1s, color 0.1s;
+}
+.topbar-dropdown-item:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.topbar-dropdown-item.active {
+  background: var(--surface-muted);
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .page-content { padding: 32px; flex: 1; overflow-y: auto; }
 
 /* ── Page header ── */

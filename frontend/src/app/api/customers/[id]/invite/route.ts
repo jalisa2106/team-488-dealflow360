@@ -6,13 +6,14 @@ import { sendInviteEmail } from "@/lib/email/send-invite-email";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireRole(["ADMIN", "SALES_REP", "SALES_MANAGER"]);
+    const { id } = await params;
 
     const customer = await prisma.customer.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!customer) {
